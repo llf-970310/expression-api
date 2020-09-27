@@ -1,0 +1,7 @@
+.idea/
+__pycache__/
+log/*
+!log/.gitkeep
+*.log
+.vscode
+.DS_Store

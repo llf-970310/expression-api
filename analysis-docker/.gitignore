@@ -1,0 +1,16 @@
+.idea/
+venv/
+__pycache__/
+*/__pycache__/
+temp_dylanchu/
+audio
+*.xls
+*.xlsx
+ifly/msc
+report.html
+*.json
+*.csv
+Pipfile.lock
+*.wav
+.vscode
+*.txt
