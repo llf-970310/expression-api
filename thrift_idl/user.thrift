@@ -36,7 +36,10 @@ struct AuthenticateWechatUserResponse {
 }
 
 struct CreateUserRequest {
-    1: required UserInfo userInfo
+    1: required string username
+    2: required string password
+    3: required string name
+    4: optional string invitationCode
 }
 
 struct CreateUserResponse {

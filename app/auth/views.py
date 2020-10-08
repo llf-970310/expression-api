@@ -41,71 +41,26 @@ def register():
         return jsonify(errors.Params_error)
     if current_app.config.get('NEED_INVITATION') and not code:
         return jsonify(errors.Params_error)
-    email, phone = '', ''
-    # 邮箱注册
-    if '@' in username:
-        email = username
-        if not validate_email(email):
-            return jsonify(errors.Params_error)
-        existing_user = UserModel.objects(email=email).first()
-        if existing_user is not None:
-            return jsonify(errors.User_already_exist)
-    else:
-        phone = username
-        if not validate_phone(phone):
-            return jsonify(errors.Params_error)
-        existing_user = UserModel.objects(phone=phone).first()
-        if existing_user is not None:
-            return jsonify(errors.User_already_exist)
-    # 判断是否需要邀请码
-    existing_invitation = None
-    if current_app.config.get('NEED_INVITATION'):
-        existing_invitation = InvitationModel.objects(code=code).first()
-        if existing_invitation is None or existing_invitation.available_times <= 0:
-            return jsonify(errors.Illegal_invitation_code)
-    # 创建新用户，不要打印志记用户的明文密码！！！
-    current_app.logger.info('[NewUser][register]email:%s, phone:%s' % (email, phone))
-    new_user = UserModel()
-    new_user.email = email.lower() if email != '' else None
-    new_user.phone = phone if phone != '' else None
-    new_user.set_password(password)
-    new_user.name = name
-    new_user.last_login_time = datetime.datetime.utcnow()
-    new_user.register_time = datetime.datetime.utcnow()
-    if current_app.config.get('NEED_INVITATION'):
-        new_user.vip_start_time = existing_invitation.vip_start_time
-        new_user.vip_end_time = existing_invitation.vip_end_time
-        new_user.remaining_exam_num = existing_invitation.remaining_exam_num
-        # 这里需要添加一个邀请码信息
-        new_user.invitation_code = existing_invitation.code
-    else:
-        new_user.vip_start_time = datetime.datetime(2020, 6, 1, 10, 0, 0)
-        new_user.vip_end_time = datetime.datetime(2020, 8, 15, 10, 0, 0)
-        new_user.remaining_exam_num = 100
-        new_user.invitation_code = ""
 
-    current_app.logger.info('[UserInfo][register]%s' % new_user.__str__())
-    # todo 从这开始需要同步
-    new_user.save()
-    current_app.logger.info('user(id = %s) has been saved' % new_user.id)
-
+    invitation_code = None
     if current_app.config.get('NEED_INVITATION'):
-        # 修改这个邀请码
-        existing_invitation.activate_users.append(email if email != '' else phone)
-        if existing_invitation.available_times <= 0:
-            return jsonify(errors.Invitation_code_invalid)
-        existing_invitation.available_times -= 1
-        current_app.logger.info('invitation info: %s' % existing_invitation.__str__())
-        existing_invitation.save()
-        # todo 同步到这结束
-        current_app.logger.info('invitation(id = %s) has been saved' % existing_invitation.id)
+        invitation_code = code
 
-    login_user(new_user)  # 直接登录？好吧
+    resp = user_client.createUser(user_thrift.CreateUserRequest(
+        username=username,
+        password=password,
+        name=name,
+        invitationCode=invitation_code
+    ))
+    if resp is None:
+        return jsonify(errors.Internal_error)
+    if resp.statusCode != 0:
+        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
 
     return jsonify(errors.success({
-        'msg': '注册成功，已自动登录',
-        'uuid': str(new_user.id),
-        'name': str(new_user.name)
+        'msg': '注册成功',
+        'username': username,
+        'nickname': name
     }))
 
 
