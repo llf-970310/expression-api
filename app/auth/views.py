@@ -4,14 +4,19 @@
 # Created by dylanchu on 19-2-24
 
 import datetime
+
+import jwt
 from flask import current_app, jsonify, request, session
 from flask_login import login_user, logout_user, current_user, login_required
 
 from app import errors
-from app.auth.util import validate_email, wx_get_user_info, validate_phone, wxlp_get_sessionkey_openid
+from app.auth.util import wx_get_user_info, validate_email, validate_phone
 from app.models.invitation import InvitationModel
 from app.models.user import UserModel
+from client import exam_thrift, exam_client, user_client, user_thrift
 from . import auth
+
+
 # from app.account.views import get_info as get_account_info
 
 
@@ -106,47 +111,46 @@ def register():
 
 @auth.route('/login', methods=['POST'])
 def login():
-    _time1 = datetime.datetime.utcnow()
-    username = request.form.get('username')
-    password = request.form.get('password')
-    # current_app.logger.debug('login request: %s' % request.form.__str__())
-    # current_app.logger.debug('login request current user: %s' % current_user.__str__())
+    authorization = request.headers.get("Authorization", None)
+    token = ""
+    is_login = False
 
-    if current_user.is_authenticated:
-        # return jsonify(errors.Already_logged_in)
-        check_user = current_user
-        current_app.logger.info('re-login user: %s, id: %s' % (check_user.name, check_user.id))
-    else:
-        """
-            校验form，规则
-            1. email符合规范
-            2. 各项不为空
-        """
-        _time2 = datetime.datetime.utcnow()
-        err, check_user = __authorize(username, password)
-        _time3 = datetime.datetime.utcnow()
-        if err is not None:
-            return jsonify(err)
-        current_app.logger.info('login user: %s, id: %s' % (check_user.name, check_user.id))
+    # already login
+    if authorization:
+        try:
+            token = authorization.split(' ')[1]
+            payload = jwt.decode(token, "secret", algorithms="HS256")
+            if payload:
+                current_app.logger.info("re-login")
+                is_login = True
+                # current_app.logger.info('re-login user: %s, id: %s' % (check_user.name, check_user.id))
+        except Exception as e:
+            current_app.logger.error(e)
 
-        # 修改最后登录时间
-        # check_user.last_login_time = datetime.datetime.utcnow()
-        # check_user.save(validate=False)
-        # 压力测试，暂时注释掉
-        check_user.update(last_login_time=datetime.datetime.utcnow())
-        _time4 = datetime.datetime.utcnow()
-        login_user(check_user)
-        _time5 = datetime.datetime.utcnow()
-        current_app.logger.info('[TimeDebug][__authorize]%s' % (_time3 - _time2))
-        current_app.logger.info('[TimeDebug][login_user]%s' % (_time5 - _time4))
-    _time6 = datetime.datetime.utcnow()
-    current_app.logger.info('[TimeDebug][login total]%s' % (_time6 - _time1))
-    # return get_account_info()
+    if not is_login:
+        username = request.form.get('username')
+        password = request.form.get('password')
+        if not (username and password):
+            return jsonify(errors.Params_error)
+
+        resp = user_client.authenticate(user_thrift.AuthenticateRequest(
+            username=username,
+            password=password
+        ))
+        if resp is None:
+            return jsonify(errors.Internal_error)
+        if resp.statusCode != 0:
+            return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
+
+        token = resp.token
+
+    payload = jwt.decode(token, "secret", algorithms="HS256")
     return jsonify(errors.success({
         'msg': '登录成功',
-        'uuid': str(check_user.id),
-        'name': str(check_user.name),
-        'role': str(check_user.role.value)
+        "token": token,
+        # 'uuid': payload["uuid"],
+        'name': payload["nick_name"],
+        'role': payload["role"]
     }))
 
 
@@ -256,41 +260,28 @@ def wechat_bind():
 def wxapp_login():
     if current_user.is_authenticated:
         return jsonify(errors.Already_logged_in)
+
     code = request.form.get('code')
-    nickName = request.form.get('nick_name')
+    nick_name = request.form.get('nick_name')
     if not code:
         return jsonify(errors.Params_error)
 
-    # code -> openid
-    err_code, _, openid = wxlp_get_sessionkey_openid(
-        code,
-        appid=current_app.config['WX_APP_APPID'],
-        secret=current_app.config['WX_APP_SECRET']
-    )
-    if err_code:
-        return jsonify(errors.error({'code': int(err_code), 'msg': '获取openid出错'}))
+    resp = user_client.authenticateWechatUser(user_thrift.AuthenticateWechatUserRequest(
+        code=code,
+        nickName=nick_name
+    ))
+    if resp is None:
+        return jsonify(errors.Internal_error)
+    if resp.statusCode != 0:
+        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
 
-    # todo: 后续 openid 改存 unionid
-    check_user = UserModel.objects(wx_id=openid).first()
+    token = resp.token
+    payload = jwt.decode(token, "secret", algorithms="HS256")
 
-    # user not exist -> new
-    if not check_user:
-        new_user = UserModel()
-        new_user.name = nickName
-        new_user.wx_id = openid
-        new_user.last_login_time = datetime.datetime.utcnow()
-        new_user.register_time = datetime.datetime.utcnow()
-        new_user.save()
-        check_user = new_user
-
-    login_user(check_user)
-    check_user.last_login_time = datetime.datetime.utcnow()
-    check_user.save()
-    current_app.logger.info('wxapp login: %s, id: %s' % (check_user.name, check_user.id))
     return jsonify(errors.success({
         'msg': '登录成功',
-        'uuid': str(check_user.id),
-        'name': str(check_user.name),
+        "token": token,
+        'name': payload["nick_name"],
     }))
 
 

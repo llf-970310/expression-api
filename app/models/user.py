@@ -2,6 +2,7 @@
 # coding: utf-8
 #
 # Created by dylanchu on 19-2-20
+import jwt
 
 from app import login_manager
 from app import db
@@ -14,9 +15,35 @@ from hashlib import md5
 _MD5_SALT = 'a random string'  # 盐一旦使用后不可更改，否则历史数据会无效
 
 
-@login_manager.user_loader
-def load_user(user_id):
-    return UserModel.objects(pk=user_id).first()
+# @login_manager.user_loader
+# def load_user(user_id):
+#     return UserModel.objects(pk=user_id).first()
+
+
+@login_manager.request_loader
+def load_user(request):
+    if request.headers.get('Authorization', None) is not None:
+        try:
+            token = request.headers['Authorization'].split(' ')[1]
+            payload = jwt.decode(token, "secret", algorithms="HS256")
+            if payload:
+                return UserModel.objects(pk=payload["uuid"]).first()
+            else:
+                return None
+            # userId = data['userid']
+            # if rd.hget(data['userid'], "token") == token:
+            #     operate_time = rd.hget(userId, "operate_time")
+            #     if time.time() - float(operate_time) > session_expired_time:
+            #         rd.hdel(userId, "token", "operate_time")
+            #         return jsonify({"code": 401, "msg": "login expired"}), 401
+            #     else:
+            #         rd.hset(userId, "operate_time", time.time())
+            # else:
+            #     return jsonify({"code": 403, "msg": "token abnormal"}), 403
+        except Exception as e:
+            return None
+    else:
+        return None
 
 
 class Roles(Enum):

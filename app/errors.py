@@ -112,3 +112,5 @@ Get_question_failed = {'code': 5102, 'msg': '获取题目失败'}
 Process_audio_failed = {'code': 5103, 'msg': '获取题目失败'}
 Audio_process_failed = {'code': 5105, 'msg': '音频处理出错'}
 WIP = {'code': 5104, 'msg': '正在处理'}
+
+Internal_error = {'code': 6000, 'msg': '服务内部错误'}

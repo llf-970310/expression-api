@@ -24,6 +24,17 @@ struct AuthenticateResponse {
     3: required string statusMsg
 }
 
+struct AuthenticateWechatUserRequest {
+    1: required string code
+    2: optional string nickName
+}
+
+struct AuthenticateWechatUserResponse {
+    1: optional string token
+    2: required i32 statusCode
+    3: required string statusMsg
+}
+
 struct CreateUserRequest {
     1: required UserInfo userInfo
 }
@@ -54,6 +65,8 @@ struct UpdateUserInfoResponse {
 
 service UserService {
     AuthenticateResponse authenticate(1: AuthenticateRequest request)
+    AuthenticateWechatUserResponse authenticateWechatUser(1: AuthenticateWechatUserRequest request)
+
     CreateUserResponse createUser(1: CreateUserRequest request)
     GetUserInfoResponse getUserInfo(1: GetUserInfoRequest request)
     UpdateUserInfoResponse updateUserInfo(1: UpdateUserInfoRequest request)
