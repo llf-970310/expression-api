@@ -2,6 +2,9 @@
 # coding: utf-8
 #
 # Created by dylanchu on 19-2-15
+import logging
+
+from flask.logging import default_handler
 
 from app import errors
 from app_config import DevelopmentConfig
@@ -11,11 +14,11 @@ from flask_mongoengine import MongoEngine
 
 import os
 import sys
+
 prj_folder = os.path.abspath(__file__).split('/app/__init__.py')[0]
 analysis_docker_folder = (os.path.join(prj_folder, 'analysis-docker'))
 sys.path.append(analysis_docker_folder)
 sys.path.append(os.path.join(analysis_docker_folder, 'expression'))
-
 
 db = MongoEngine()
 login_manager = LoginManager()
@@ -27,7 +30,15 @@ def create_app():
     app = Flask(__name__, static_url_path='/static')  # 要映射静态文件到根目录下用static_url_path=''
 
     app.config.from_object(DevelopmentConfig)
+
+    # logger
+    app.logger.removeHandler(default_handler)
     app.logger.setLevel(app.config['LOG_LEVEL'])
+    formatter = logging.Formatter(fmt='[%(asctime)s] [%(filename)s:%(lineno)d] [%(levelname)s] %(message)s ',
+                                  datefmt="%Y/%m/%d %H:%M:%S")
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+    app.logger.addHandler(stream_handler)
 
     if app.config['SESSION_TYPE'] != 'null':
         from flask_session import Session
