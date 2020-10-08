@@ -125,7 +125,8 @@ def collect(analysis_question, history_list):
         for question in questions.values():
             if question['q_id'] == analysis_question['id'].__str__() and question['status'] == 'finished' and \
                     not question['analysed']:
-                analysis = Analysis.compute_score_and_save(test, analysis_question['q_id'], analysis_question,
+                analysis = Analysis.init_analysis_item(analysis_question, question, test)
+                analysis = Analysis.compute_score_and_save(analysis, analysis['voice_features'], analysis_question,
                                                            test['test_start_time'])
                 if analysis is None:
                     continue

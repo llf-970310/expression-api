@@ -1,8 +1,11 @@
-from app.models.analysis import AnalysisModel
-from app.models.exam import HistoryTestModel
-from app.exam.exam_config import ExamConfig
+import json
 
-import expression.new_analysis as analysis_util
+from flask import current_app
+
+from app.models.exam import *
+from app.models.analysis import *
+from app.exam.exam_config import ExamConfig
+from client import analysis_thrift, analysis_client
 
 
 class Analysis(object):
@@ -11,13 +14,13 @@ class Analysis(object):
         """对指定题目重新分析
         :param analysis_question: 要被分析的 question
         """
-        print("analysis out", analysis_question['q_id'])
+        print("analysis out", analysis_question['index'])
         total_key, total_detail, count = 0, 0, 0
         # 首先，将analysis表里所有这道题的答案都重新分析一遍
-        old_analysis_list = AnalysisModel.objects(question_num=analysis_question['q_id'])
+        old_analysis_list = AnalysisModel.objects(question_num=analysis_question['index'])
         for analysis in old_analysis_list:
-            self.compute_score_and_save(analysis, analysis['voice_features'], analysis_question,
-                                        analysis['test_start_time'])
+            Analysis.compute_score_and_save(analysis, analysis['voice_features'], analysis_question,
+                                            analysis['test_start_time'])
             total_key = analysis['score_key']
             total_detail = analysis['score_detail']
             count += 1
@@ -31,8 +34,9 @@ class Analysis(object):
             for question in questions.values():
                 if question['q_id'] == analysis_question['id'].__str__() and question['status'] == 'finished' and \
                         not question['analysed']:
-                    analysis = self.compute_score_and_save(test, analysis_question['q_id'], analysis_question,
-                                                           test['test_start_time'])
+                    analysis = Analysis.init_analysis_item(analysis_question, question, test)
+                    analysis = Analysis.compute_score_and_save(analysis, analysis['voice_features'], analysis_question,
+                                                               test['test_start_time'])
                     if analysis is None:
                         continue
                     question['analysed'] = True
@@ -60,6 +64,30 @@ class Analysis(object):
         pass
 
     @staticmethod
+    def init_analysis_item(analysis_question, question, test):
+        """根据相关类（题目、测试）初始化一条 analysis 记录
+        :param analysis_question: 要被分析的 question（对应 question 表）
+        :param question: 一次测试中的某道题目的作答记录（对应 current/history 表中的 questions）
+        :param test: 测试（对应 current/history 表）
+        """
+        print("analysis inner", analysis_question['index'], test['test_start_time'])
+        analysis = AnalysisModel()
+        analysis['exam_id'] = test['id'].__str__()
+        analysis['user'] = test['user_id']
+        analysis['question_id'] = question['q_id'].__str__()
+        analysis['question_num'] = analysis_question['index']
+        voice_features = {
+            'rcg_text': question['feature']['rcg_text'],
+            'last_time': question['feature']['last_time'],
+            'interval_num': question['feature']['interval_num'],
+            'interval_ratio': question['feature']['interval_ratio'],
+            'volumes': question['feature']['volumes'],
+            'speeds': question['feature']['speeds'],
+        }
+        analysis['voice_features'] = voice_features
+        return analysis
+
+    @staticmethod
     def init_process(analysis_question):
         """对指定问题进行 analysis 表的初始化工作
 
@@ -75,7 +103,8 @@ class Analysis(object):
             all_analysed = True
             for question in questions.values():
                 if question['q_id'] == analysis_question['id'].__str__() and question['status'] == 'finished':
-                    Analysis.compute_score_and_save(test, analysis_question['q_id'], analysis_question,
+                    analysis = Analysis.init_analysis_item(analysis_question, question, test)
+                    Analysis.compute_score_and_save(analysis, analysis['voice_features'], analysis_question,
                                                     test['test_start_time'])
                     question['analysed'] = True
                 all_analysed = all_analysed and question['analysed']
@@ -84,44 +113,36 @@ class Analysis(object):
         pass
 
     @staticmethod
-    def compute_score_and_save(test, q_id, question, test_start_time):
-        print("analysis inner:compute_score_and_save:q_id: %s, test_start_time: %s"
-              % (q_id, test['test_start_time']))
+    def compute_score_and_save(analysis, voice_features, question, test_start_time):
         try:
-            analysis = AnalysisModel()
-            analysis['exam_id'] = test['id'].__str__()
-            analysis['user'] = test['user_id']
-            analysis['question_id'] = question['q_id'].__str__()
-            analysis['question_num'] = q_id
-            features = question['feature']
-            voice_features = {
-                'rcg_text': features['rcg_text'],
-                'last_time': features['last_time'],
-                'interval_num': features['interval_num'],
-                'interval_ratio': features['interval_ratio'],
-                'volumes': features['volumes'],
-                'speeds': features['speeds'],
-            }
-            analysis['voice_features'] = voice_features
-            print('test_start_time: ' + test['test_start_time'].__str__())
-            feature_result = analysis_util.analysis_features(None, question['wordbase'], voice_features=voice_features)
-            score = analysis_util.compute_score(feature_result['key_hits'], feature_result['detail_hits'],
-                                                question['weights']['key'], question['weights']['detail'])
-            analysis['score_key'] = float(score['key'])
-            analysis['score_detail'] = float(score['detail'])
-            analysis['key_hits'] = feature_result['key_hits']
-            analysis['detail_hits'] = feature_result['detail_hits']
-            analysis['test_start_time'] = test_start_time
-            analysis.save()
-            return analysis
+            resp = analysis_client.analyzeRetellingQuestion(
+                analysis_thrift.AnalyzeRetellingQuestionRequest(
+                    voiceFeatures=json.dumps(voice_features),
+                    keywords=question['wordbase']['keywords'],
+                    detailwords=question['wordbase']['detailwords'],
+                    keyWeights=question['weights']['key'],
+                    detailWeights=question['weights']['detail']
+                )
+            )
+            if resp is None or resp.statusCode != 0:
+                current_app.logger.error("[compute_score_and_save] "
+                                         "analysis_client.analyzeRetellingQuestion failed. msg=%s" % resp.statusMsg)
+                return None
+            else:
+                feature = json.loads(resp.feature)
+                analysis['score_key'] = resp.keyScore
+                analysis['score_detail'] = resp.detailScore
+                analysis['key_hits'] = feature['key_hits']
+                analysis['detail_hits'] = feature['detail_hits']
+                analysis['test_start_time'] = test_start_time
+                analysis.save()
+                return analysis
         except Exception as e:
-            print('################')
-            print('ERROR:compute_score_and_save: test.id: %s, q_id: %s -->' % (test.id, q_id))
-            print(e)
-
+            current_app.logger.error("[compute_score_and_save] exception caught. exam_id: %s, question_id: %s" % (
+                analysis['exam_id'], analysis['question_id']))
+            current_app.logger.error(repr(e))
 
 # if __name__ == '__main__':
-#     import sys
 #     print(sys.path)
 #     print(analysis_util)
 #     analysis = Analysis()

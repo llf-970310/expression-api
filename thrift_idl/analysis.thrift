@@ -13,11 +13,12 @@ struct AnalyzeReadingQuestionResponse {
 }
 
 struct AnalyzeRetellingQuestionRequest {
-    1: required string filePath
-    2: required list<list<string>> keywords
-    3: required list<list<list<string>>> detailwords
-    4: required list<double> keyWeights
-    5: required list<double> detailWeights
+    1: optional string filePath  // 未识别过，传文件路径
+    2: optional string voiceFeatures  // 已识别过，直接传音频特征
+    3: required list<list<string>> keywords
+    4: required list<list<list<string>>> detailwords
+    5: required list<double> keyWeights
+    6: required list<double> detailWeights
 }
 
 struct AnalyzeRetellingQuestionResponse {
