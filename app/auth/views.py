@@ -192,21 +192,32 @@ def wechat_bind():
         return jsonify(errors.error())
     username = request.form.get('username')
     password = request.form.get('password')
-    err, check_user = __authorize(username, password)
-    if err is not None:
-        return jsonify(err)
+
+    resp = user_client.authenticate(user_thrift.AuthenticateRequest(
+        username=username,
+        password=password
+    ))
+    if resp is None:
+        return jsonify(errors.Internal_error)
+    if resp.statusCode != 0:
+        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
+
+    token = resp.token
+    payload = jwt.decode(token, "secret", algorithms="HS256")
+    check_user = UserModel.objects(pk=payload["uuid"]).first()
+
     if check_user.wx_id:
         return jsonify(errors.Wechat_already_bind)
-    current_app.logger.info('login user: %s, id: %s' % (check_user.name, check_user.id))
-    login_user(check_user)
+
     current_app.logger.info('Bind wechat union id -\n  user: %s, union id: %s' % (check_user.email, wx_union_id))
-    current_user.wx_id = wx_union_id
-    current_user.last_login_time = datetime.datetime.utcnow()
-    current_user.save()
+    check_user.wx_id = wx_union_id
+    check_user.last_login_time = datetime.datetime.utcnow()
+    check_user.save()
+
     return jsonify(errors.success({
-        'msg': '绑定成功，登录成功',
-        'uuid': str(check_user.id),
-        'name': str(check_user.name),
+        'msg': '绑定成功',
+        'token': token,
+        'name': payload["nick_name"],
     }))
 
 
@@ -238,35 +249,3 @@ def wxapp_login():
         "token": token,
         'name': payload["nick_name"],
     }))
-
-
-def __authorize(username, password):
-    """
-    使用 username 和 password 验证用户
-    :type username: str
-    :type password: str
-    :return: 返回一个tuple： (err, check_user)
-        err 为 errors 中定义的错误类型（dict）
-        check_user 为数据库中检索到的用户对象
-        若通过, err 为 None
-        若验证不通过, check_user 为 None
-    """
-    if not (username and password):
-        return errors.Params_error, None
-    username = username.strip().lower()
-    password = password.strip()
-    if '@' in username:
-        # 邮箱登录
-        if not validate_email(username):
-            return errors.Params_error, None
-        check_user = UserModel.objects(email=username).first()
-    else:
-        # 手机号登录
-        if not validate_phone(username):
-            return errors.Params_error, None
-        check_user = UserModel.objects(phone=username).first()
-    if not check_user:
-        return errors.User_not_exist, None
-    if (not current_app.config['IGNORE_LOGIN_PASSWORD']) and (not check_user.check_password(password)):
-        return errors.Authorize_failed, None
-    return None, check_user
