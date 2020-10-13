@@ -67,9 +67,11 @@ struct UpdateUserInfoResponse {
 }
 
 service UserService {
+    // 认证相关
     AuthenticateResponse authenticate(1: AuthenticateRequest request)
     AuthenticateWechatUserResponse authenticateWechatUser(1: AuthenticateWechatUserRequest request)
 
+    // 用户信息相关
     CreateUserResponse createUser(1: CreateUserRequest request)
     GetUserInfoResponse getUserInfo(1: GetUserInfoRequest request)
     UpdateUserInfoResponse updateUserInfo(1: UpdateUserInfoRequest request)

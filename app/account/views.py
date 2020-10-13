@@ -11,6 +11,7 @@ from flask_login import current_user, login_required
 from app import errors
 from app.exam.manager.exam import get_exam_by_id, get_score_and_feature
 from app.exam.manager.report import generate_report
+from client import exam_client, exam_thrift
 from . import account
 
 from app.models.exam import HistoryTestModel, CurrentTestModel
@@ -103,60 +104,27 @@ def get_info():
     }))
 
 
-# TODO: 接口可以在这里，但评分逻辑应该单独抽取出来
 @account.route('/history-scores/<tpl_id>', methods=['GET'])
 @account.route('/history-scores', methods=['GET'])
 @login_required
 def get_history_scores(tpl_id="0"):
-    # 查看所有历史成绩
-    if tpl_id == "0":
-        history_scores_origin = HistoryTestModel.objects(user_id=str(current_user.id)).order_by("test_start_time")
-        current_scores_origin = CurrentTestModel.objects(user_id=str(current_user.id)).order_by("test_start_time")
-    # 查看指定模板的历史成绩
-    else:
-        history_scores_origin = HistoryTestModel.objects(user_id=str(current_user.id), paper_tpl_id=tpl_id).order_by("test_start_time")
-        current_scores_origin = CurrentTestModel.objects(user_id=str(current_user.id), paper_tpl_id=tpl_id).order_by("test_start_time")
+    resp = exam_client.getExamRecord(exam_thrift.GetExamRecordRequest(
+        userId=str(current_user.id),
+        templateId=tpl_id if tpl_id != "0" else ""
+    ))
+    if resp is None:
+        return jsonify(errors.Internal_error)
+    if resp.statusCode != 0:
+        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
 
     history_scores = []
-    for history in history_scores_origin:
-        history_score_item = {
-            "test_start_time": datetime_to_str(history["test_start_time"]),
-            "paper_tpl_id": history["paper_tpl_id"],
-            "test_id": history["current_id"]
-        }
-
-        score_format = {}
-        if history["score_info"]:
-            for k, v in history["score_info"].items():
-                score_format[k] = format(v, ScoreConfig.DEFAULT_NUM_FORMAT)
-        else:
-            for k in ["音质", "结构", "逻辑", "细节", "主旨", "total"]:
-                score_format[k] = format(0, ScoreConfig.DEFAULT_NUM_FORMAT)
-
-        history_score_item["score_info"] = score_format
-        history_scores.append(history_score_item)
-
-    for current in current_scores_origin:
-        questions = current['questions']
-        if __question_all_finished(questions):  # 全部结束才录入history
-            # 所有题目已完成但没有分数信息，则计算分数
-            if not current['score_info']:
-                score = {}
-                for k, v in questions.items():
-                    score[int(k)] = v['score']
-                current['score_info'] = compute_exam_score(score, current.paper_type)
-                current.save()
-
-            score_format = {}
-            for k, v in current["score_info"].items():
-                score_format[k] = format(v, ScoreConfig.DEFAULT_NUM_FORMAT)
-
-            history_scores.append({
-                "test_start_time": datetime_to_str(current["test_start_time"]),
-                "test_id": str(current["id"]),
-                "score_info": score_format,
-                "paper_tpl_id": current["paper_tpl_id"],
-            })
+    for exam_item in resp.examList:
+        history_scores.append({
+            "test_start_time": exam_item.examStartTime,
+            "paper_tpl_id": exam_item.templateId,
+            "test_id": exam_item.examId,
+            "score_info": exam_score_convert_to_json(exam_item.scoreInfo)
+        })
 
     if len(history_scores) == 0:
         return jsonify(errors.No_history)
@@ -166,23 +134,35 @@ def get_history_scores(tpl_id="0"):
 @account.route('/history-report/<test_id>', methods=['GET'])
 @login_required
 def get_history_report(test_id):
-    test = get_exam_by_id(test_id)
-    if test is None:
-        return jsonify(errors.Exam_not_exist)
+    resp = exam_client.getExamReport(exam_thrift.GetExamReportRequest(examId=test_id))
+    if resp is None:
+        return jsonify(errors.Internal_error)
+    if resp.statusCode != 0:
+        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
 
-    questions = test['questions']
-    handling, score, feature = get_score_and_feature(questions)
-    if handling:
-        return jsonify(errors.WIP)
-    else:
-        report = generate_report(feature, score, test.paper_type)
-        # 为了与 get_result 接口保持统一，这里用了 data 做字段，实际是分数信息
-        result = {"report": report, "data": test['score_info']}
-        return jsonify(errors.success(result))
+    report = resp.report
+    score = resp.score
+    result = {
+        "report": {
+            "主旨": report.key, "细节": report.detail, "结构": report.structure,
+            "逻辑": report.logic, "音质": {
+                "无效表达率": report.ftlRatio,
+                "清晰度": report.clearRatio,
+                "语速": report.speed,
+                "间隔": report.interval
+            }
+        },
+        "data": exam_score_convert_to_json(score)
+    }
+    return jsonify(errors.success(result))
 
 
-def __question_all_finished(question_dict):
-    for value in question_dict.values():
-        if value['status'] != 'finished' and value['status'] != 'error':
-            return False
-    return True
+def exam_score_convert_to_json(score) -> dict:
+    return {
+        "total": format(score.total, ScoreConfig.DEFAULT_NUM_FORMAT),
+        "主旨": format(score.key, ScoreConfig.DEFAULT_NUM_FORMAT),
+        "细节": format(score.detail, ScoreConfig.DEFAULT_NUM_FORMAT),
+        "结构": format(score.structure, ScoreConfig.DEFAULT_NUM_FORMAT),
+        "逻辑": format(score.logic, ScoreConfig.DEFAULT_NUM_FORMAT),
+        "音质": format(score.quality, ScoreConfig.DEFAULT_NUM_FORMAT)
+    }
