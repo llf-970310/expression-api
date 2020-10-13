@@ -9,15 +9,11 @@ from flask import request, current_app, jsonify
 from flask_login import current_user, login_required
 
 from app import errors
-from app.exam.manager.exam import get_exam_by_id, get_score_and_feature
-from app.exam.manager.report import generate_report
+from app.utils.dto_converter import exam_score_convert_to_json, exam_report_convert_to_json
 from client import exam_client, exam_thrift
 from . import account
 
-from app.models.exam import HistoryTestModel, CurrentTestModel
-from app.admin.admin_config import ScoreConfig
 from app.utils.date_and_time import datetime_to_str
-from app.paper import compute_exam_score
 from app.models.invitation import InvitationModel
 
 
@@ -143,26 +139,7 @@ def get_history_report(test_id):
     report = resp.report
     score = resp.score
     result = {
-        "report": {
-            "主旨": report.key, "细节": report.detail, "结构": report.structure,
-            "逻辑": report.logic, "音质": {
-                "无效表达率": report.ftlRatio,
-                "清晰度": report.clearRatio,
-                "语速": report.speed,
-                "间隔": report.interval
-            }
-        },
+        "report": exam_report_convert_to_json(report),
         "data": exam_score_convert_to_json(score)
     }
     return jsonify(errors.success(result))
-
-
-def exam_score_convert_to_json(score) -> dict:
-    return {
-        "total": format(score.total, ScoreConfig.DEFAULT_NUM_FORMAT),
-        "主旨": format(score.key, ScoreConfig.DEFAULT_NUM_FORMAT),
-        "细节": format(score.detail, ScoreConfig.DEFAULT_NUM_FORMAT),
-        "结构": format(score.structure, ScoreConfig.DEFAULT_NUM_FORMAT),
-        "逻辑": format(score.logic, ScoreConfig.DEFAULT_NUM_FORMAT),
-        "音质": format(score.quality, ScoreConfig.DEFAULT_NUM_FORMAT)
-    }
