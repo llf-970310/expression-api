@@ -126,35 +126,3 @@ class PaperUtils:
         current_test.paper_type = paper_type
         current_test.save()
         return str(current_test.id)
-
-    @staticmethod
-    def question_dealer(user_id: str, test, question_num: int) -> dict:
-        user_id = str(user_id)
-        # wrap question
-        question = test.questions[str(question_num)]
-        context = {"questionType": question.q_type,
-                   "questionDbId": question.q_id,
-                   "questionNumber": question_num,
-                   "questionLimitTime": ExamConfig.question_limit_time[question.q_type],
-                   "lastQuestion": question_num == len(test.questions),
-                   "readLimitTime": ExamConfig.question_prepare_time[question.q_type],
-                   "questionInfo": QuestionConfig.question_type_tip[question.q_type],
-                   "questionContent": question.q_text,
-                   "examLeftTime": (test.test_expire_time - datetime.datetime.utcnow()).total_seconds(),
-                   "examTime": (test.test_expire_time - test.test_start_time).seconds
-                   }
-
-        # update and save
-        # 这两个状态是否必要？？
-        question.status = 'question_fetched'
-        test.current_q_num = question_num
-        test.save()
-
-        # log question id to user's historical questions
-        user = UserModel.objects(id=user_id).first()
-        if user is None:
-            current_app.logger.error("question_dealer: ERROR: user not find")
-        user.questions_history.update({question.q_id: datetime.datetime.utcnow()})
-        user.save()
-
-        return context

@@ -22,3 +22,18 @@ def exam_report_convert_to_json(report) -> dict:
             "间隔": report.interval
         }
     }
+
+
+def question_info_convert_to_json(question) -> dict:
+    return {
+        "questionType": question.type,
+        "questionDbId": question.id,
+        "questionNumber": question.questionNum,
+        "questionLimitTime": question.answerLimitTime,
+        "lastQuestion": question.isLastQuestion,
+        "readLimitTime": question.readLimitTime,
+        "questionInfo": question.questionTip,
+        "questionContent": question.content,
+        "examLeftTime": question.examLeftTime,
+        "examTime": question.examTime
+    }

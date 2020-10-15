@@ -2,7 +2,7 @@
 # coding: utf-8
 #
 # Created by dylanchu on 19-2-25
-
+import logging
 import random
 import Levenshtein
 import time
@@ -16,6 +16,9 @@ from app.exam.manager.report import generate_report
 from app.models.exam import *
 from app.async_tasks import MyCelery
 from app.models.paper_template import PaperTemplate
+from app.models.user import UserModel
+from app.utils.dto_converter import question_info_convert_to_json
+from client import exam_client, exam_thrift
 from . import exam
 from .exam_config import PathConfig, ExamConfig, QuestionConfig, DefaultValue, Setting, ReportConfig
 from .utils.session import ExamSession
@@ -42,22 +45,21 @@ from .utils.misc import get_server_date_str
 @exam.route('/pretest-wav-info', methods=['GET'])
 @login_required
 def get_test_wav_info():
-    user_id = str(current_user.id)
-    wav_test = WavPretestModel()
-    wav_test['text'] = QuestionConfig.pretest_text['content']
-    wav_test['user_id'] = user_id
-    wav_test.save()
-    current_app.logger.info("get_test_wav_info: return data! test id: %s, user name: %s" % (wav_test.id.__str__(),
-                                                                                            current_user.name))
+    resp = exam_client.initNewAudioTest(exam_thrift.InitNewAudioTestRequest(
+        userId=str(current_user.id)
+    ))
+    if resp is None:
+        logging.error("[get_test_wav_info] exam_client.initNewAudioTest failed")
+        return jsonify(errors.Internal_error)
+    if resp.statusCode != 0:
+        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
+
     return jsonify(errors.success({
-        "questionLimitTime": ExamConfig.question_limit_time[0],
-        "readLimitTime": ExamConfig.question_prepare_time[0],
-        "questionContent": wav_test['text'],
-        "questionInfo": {
-            "detail": QuestionConfig.pretest_text['detail'],
-            "tip": QuestionConfig.pretest_text['tip'],
-        },
-        "testId": wav_test.id.__str__()
+        "questionLimitTime": resp.question.answerLimitTime,
+        "readLimitTime": resp.question.readLimitTime,
+        "questionContent": resp.question.content,
+        "questionInfo": resp.question.questionTip,
+        "testId": resp.question.id
     }))
 
 
@@ -363,40 +365,39 @@ def next_question_v2(question_num):
     }
     """
     # 验证参数
-    try:
-        next_question_num = int(question_num) + 1
-        if next_question_num <= 0:  # db中题号从1开始
-            raise Exception('Bad request')
-    except Exception as e:
-        current_app.logger.error('[ParamsError][next_question]uid:%s,name:%s,args:%s'
-                                 % (current_user.id, current_user.name, request.args))
+    next_question_num = int(question_num) + 1
+    if next_question_num <= 0:  # db中题号从1开始
         return jsonify(errors.Params_error)
 
     # todo: nowQuestionNum: 限制只能获取当前题目
     ExamSession.set(current_user.id, 'question_num', next_question_num)
+    test_id = ExamSession.get(current_user.id, "test_id", default=DefaultValue.test_id)  # for production
 
-    test_id = ExamSession.get(current_user.id, "test_id",
-                              default=DefaultValue.test_id)  # for production
-    # get test
-    test = CurrentTestModel.objects(id=test_id).first()
-    if test is None:
-        current_app.logger.error("[QuestionNotExist][next_question]user:%s,test_id:%s" %
-                                 (current_user.id, test_id))
-        return jsonify(errors.Test_not_exist)
-    # 如果超出最大题号
-    if next_question_num > len(test.questions):
-        ExamSession.set(current_user.id, 'question_num', 0)
-        return jsonify(errors.Exam_finished)
-    # 根据题号查找题目
-    context = PaperUtils.question_dealer(str(current_user.id), test, next_question_num)
-    if not context:
+    resp = exam_client.getQuestionInfo(exam_thrift.GetQuestionInfoRequest(
+        examId=test_id,
+        questionNum=next_question_num
+    ))
+    if resp is None:
+        logging.error("[next_question_v2] exam_client.getQuestionInfo failed")
+        return jsonify(errors.Internal_error)
+    if resp.statusCode != 0:
+        if resp.statusCode == errors.Exam_finished["code"]:
+            ExamSession.set(current_user.id, 'question_num', 0)
+        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
+
+    if not resp.question:
         return jsonify(errors.Get_question_failed)
+
+    # log question id to user's historical questions
+    user = UserModel.objects(id=str(current_user.id)).first()
+    user.questions_history.update({resp.question.id: datetime.datetime.utcnow()})
+    user.save()
+
     # 判断考试是否超时，若超时则返回错误
-    if context['examLeftTime'] <= 0:
+    if resp.question.examLeftTime <= 0:
         return jsonify(errors.Test_time_out)
-    current_app.logger.debug("next_question: return data: %s, user name: %s"
-                             % (str(context), current_user.name))
-    return jsonify(errors.success(context))
+
+    return jsonify(errors.success(question_info_convert_to_json(resp.question)))
 
 
 # @exam.route('/find-left-exam', methods=['POST'])
