@@ -76,5 +76,7 @@ def create_app():
     app.register_blueprint(questions_blueprint, url_prefix='/api/questions')
     from .async_tasks import ap_view as ap_view_blueprint
     app.register_blueprint(ap_view_blueprint, url_prefix='/api/apscheduler')
+    from .demo import demo as demo_blueprint
+    app.register_blueprint(demo_blueprint, url_prefix='/api/demo')
 
     return app

@@ -42,8 +42,22 @@ struct AnalyzeExpressionQuestionResponse {
     5: required string statusMsg
 }
 
+struct AnalyzeSentenceRequest {
+    1: required string base64Str
+    2: required i32 segmentNum
+    3: required map<string, list<string>> wordbase
+}
+
+struct AnalyzeSentenceResponse {
+    1: required string feature
+    2: required i32 statusCode
+    3: required string statusMsg
+}
+
 service AnalysisService {
     AnalyzeReadingQuestionResponse analyzeReadingQuestion(1: AnalyzeReadingQuestionRequest request)
     AnalyzeRetellingQuestionResponse analyzeRetellingQuestion(1: AnalyzeRetellingQuestionRequest request)
     AnalyzeExpressionQuestionResponse analyzeExpressionQuestion(1: AnalyzeExpressionQuestionRequest request)
+
+    AnalyzeSentenceResponse analyzeSentence(1: AnalyzeSentenceRequest request)
 }
