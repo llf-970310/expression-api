@@ -103,7 +103,7 @@ def login():
     return jsonify(errors.success({
         'msg': '登录成功',
         "token": token,
-        # 'uuid': payload["uuid"],
+        'uuid': payload["uuid"],
         'name': payload["nick_name"],
         'role': payload["role"]
     }))

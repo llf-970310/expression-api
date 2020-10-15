@@ -29,7 +29,6 @@ from .utils.misc import get_server_date_str
 # TODO: 保存put_task接口返回的ret.id到redis，于查询考试结果时查验，减少读库次数
 # TODO: pretest完全使用任务队列完成，不使用数据库
 # TODO: 接口改为标准REST风格
-# TODO: 使用token支持无状态请求,避免使用flask-session库
 # TODO: get-upload-url时后端发放STS凭证供前端访问BOS，避免直接在前端存BOS凭证
 
 """
