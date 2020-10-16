@@ -1,5 +1,10 @@
 namespace py exam
 
+enum ExamType {
+    AudioTest = 1
+    RealExam = 2
+}
+
 struct ExamScore {
     1: optional double total
     2: optional double quality
@@ -104,12 +109,27 @@ struct GetQuestionInfoResponse {
     4: required string statusMsg
 }
 
+struct GetFileUploadPathRequest {
+    1: required string examId
+    2: required string userId
+    3: required ExamType type  // 1 音频测试 2 正式测试
+    4: optional i32 questionNum
+}
+
+struct GetFileUploadPathResponse {
+    1: required string path
+    3: required i32 statusCode
+    4: required string statusMsg
+}
+
 service ExamService {
     // 初始化音频测试题
     InitNewAudioTestResponse initNewAudioTest(1: InitNewAudioTestRequest request)
 
     // 获取题目信息
     GetQuestionInfoResponse getQuestionInfo(1: GetQuestionInfoRequest request)
+    // 获取音频文件的上传路径
+    GetFileUploadPathResponse getFileUploadPath(1: GetFileUploadPathRequest request)
 
     // 获取测试报告（分数直接取数据库）
     GetExamReportResponse getExamReport(1: GetExamReportRequest request)

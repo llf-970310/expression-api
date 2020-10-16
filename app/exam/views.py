@@ -68,24 +68,22 @@ def get_test_wav_url():
     test_id = request.args.get('testId')
     if not test_id:
         return jsonify(errors.Params_error)
-    wav_test = WavPretestModel.objects(id=test_id).first()
-    if not wav_test:
-        current_app.logger.error("get_test_wav_url: no such test! test id: %s, user name: %s" %
-                                 (test_id, current_user.name))
-        return jsonify(errors.success(errors.Test_not_exist))
-    user_id = str(current_user.id)
-    file_dir = '/'.join((PathConfig.audio_test_basedir, get_server_date_str('-'), user_id))
-    _temp_str = "%sr%s" % (int(time.time()), random.randint(100, 1000))
-    file_name = "%s%s" % (_temp_str, PathConfig.audio_extension)
-    wav_test['wav_upload_url'] = file_dir + '/' + file_name
-    wav_test['file_location'] = 'BOS'
-    wav_test.save()
-    current_app.logger.info("get_test_wav_url: return data! test id: %s, url: %s, user name: %s" %
-                            (test_id, wav_test['wav_upload_url'], current_user.name))
+
+    resp = exam_client.getFileUploadPath(exam_thrift.GetFileUploadPathRequest(
+        examId=test_id,
+        userId=str(current_user.id),
+        type=exam_thrift.ExamType.AudioTest
+    ))
+    if resp is None:
+        logging.error("[get_test_wav_url] exam_client.getFileUploadPath failed")
+        return jsonify(errors.Internal_error)
+    if resp.statusCode != 0:
+        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
+
     return jsonify(errors.success({
         "fileLocation": "BOS",
-        "url": wav_test['wav_upload_url'],
-        "test_id": wav_test.id.__str__()
+        "url": resp.path,
+        "test_id": test_id
     }))
 
 
@@ -139,54 +137,21 @@ def get_pretest_result_v2():
 @exam.route('/<question_num>/upload-url', methods=['GET'])
 @login_required
 def get_upload_url_v2(question_num):
-    test_id = ExamSession.get(current_user.id, "test_id",
-                              default=DefaultValue.test_id)  # for production
-    # get test
-    current_test = CurrentTestModel.objects(id=test_id).first()
-    if current_test is None:
-        current_app.logger.error(
-            "[TestNotFound][get_upload_url_v2]username: %s, test_id: %s" % (current_user.name, test_id))
-        return jsonify(errors.Exam_not_exist)
+    test_id = ExamSession.get(current_user.id, "test_id", default=DefaultValue.test_id)  # for production
 
-    # get question
-    user_id = str(current_user.id)
-    current_app.logger.debug("[DEBUG][get_upload_url_v2]question_num: %s, user_name: %s"
-                             % (question_num, current_user.name))
-    try:
-        question = current_test.questions[question_num]
-    except Exception as e:
-        current_app.logger.error("[GetEmbeddedQuestionException][get_upload_url_v2]question_num: "
-                                 "%s, user_name: %s. exception:\n%s"
-                                 % (question_num, current_user.name, e))
-        return jsonify(errors.Get_question_failed)
+    resp = exam_client.getFileUploadPath(exam_thrift.GetFileUploadPathRequest(
+        examId=test_id,
+        userId=str(current_user.id),
+        type=exam_thrift.ExamType.RealExam,
+        questionNum=int(question_num)
+    ))
+    if resp is None:
+        logging.error("[get_upload_url_v2] exam_client.getFileUploadPath failed")
+        return jsonify(errors.Internal_error)
+    if resp.statusCode != 0:
+        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
 
-    # sts = auth.get_sts_from_redis()  # a to--do
-
-    """generate file path
-    upload file path: 相对目录(audio)/日期/用户id/时间戳+后缀(.wav)
-    temp path for copy: 相对目录(temp_audio)/用户id/文件名(同上)
-    """
-
-    # 如果数据库没有该题的url，创建url，存数据库 ，然后返回
-    # 如果数据库里已经有这题的url，说明是重复请求，不用再创建
-    if not question.wav_upload_url:
-        file_dir = '/'.join((PathConfig.audio_save_basedir, get_server_date_str('-'), user_id))
-        _temp_str = "%sr%s" % (int(time.time()), random.randint(100, 1000))
-        file_name = "%s%s" % (_temp_str, PathConfig.audio_extension)
-        question.wav_upload_url = file_dir + '/' + file_name
-
-        # -------- 压测: 使用指定路径进行覆盖,只供压测使用,否则将导致灾难性后果!
-        # question.wav_upload_url = request.args.get('givenUrl')
-        # -----------------------------------------------------------
-
-        question.file_location = 'BOS'
-        question.status = 'url_fetched'
-        current_test.save()
-        current_app.logger.info("[NewUploadUrl][get_upload_url]user_id:%s, url:%s"
-                                % (current_user.id, question.wav_upload_url))
-        current_app.logger.info("[INFO][get_upload_url_v2]new url: " + question.wav_upload_url)
-
-    context = {"fileLocation": "BOS", "url": question.wav_upload_url}
+    context = {"fileLocation": "BOS", "url": resp.path}
     return jsonify(errors.success(context))
 
 
