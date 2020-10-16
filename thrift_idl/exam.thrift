@@ -87,16 +87,16 @@ struct InitNewAudioTestResponse {
     3: required string statusMsg
 }
 
-//struct InitNewExamRequest {
-//    1: required string userId
-//    2: required string templateId
-//}
-//
-//struct InitNewExamResponse {
-//    1: required list<ExamRecord> examList
-//    2: required i32 statusCode
-//    3: required string statusMsg
-//}
+struct InitNewExamRequest {
+    1: required string userId
+    2: required string templateId
+}
+
+struct InitNewExamResponse {
+    1: required string examId
+    2: required i32 statusCode
+    3: required string statusMsg
+}
 
 struct GetQuestionInfoRequest {
     1: required string examId
@@ -125,6 +125,8 @@ struct GetFileUploadPathResponse {
 service ExamService {
     // 初始化音频测试题
     InitNewAudioTestResponse initNewAudioTest(1: InitNewAudioTestRequest request)
+    // 初始化正式测试题
+    InitNewExamResponse initNewExam(1: InitNewExamRequest request)
 
     // 获取题目信息
     GetQuestionInfoResponse getQuestionInfo(1: GetQuestionInfoRequest request)

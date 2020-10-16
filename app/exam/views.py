@@ -18,7 +18,7 @@ from app.async_tasks import MyCelery
 from app.models.paper_template import PaperTemplate
 from app.models.user import UserModel
 from app.utils.dto_converter import question_info_convert_to_json
-from client import exam_client, exam_thrift
+from client import exam_client, exam_thrift, user_client, user_thrift
 from . import exam
 from .exam_config import PathConfig, ExamConfig, QuestionConfig, DefaultValue, Setting, ReportConfig
 from .utils.session import ExamSession
@@ -280,23 +280,32 @@ def init_exam_v2(paper_tpl_id):
     """
     # 判断是否有剩余考试次数
     if Setting.LIMIT_EXAM_TIMES:
-        can, err = current_user.can_do_exam()
-        if not can:
-            return jsonify(err)
+        resp = user_client.checkExamPermission(user_thrift.CheckExamPermissionRequest(
+            userId=str(current_user.id)
+        ))
+        if resp is None:
+            logging.error("[init_exam_v2] user_client.checkExamPermission failed")
+            return jsonify(errors.Internal_error)
+        if resp.statusCode != 0:
+            return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
+
     # 生成当前题目
-    current_app.logger.info('[InitExam][new-exam]id:%s,name:%s' % (current_user.id, current_user.name))
-    _time1 = datetime.datetime.utcnow()
-    test_id = PaperUtils.init_paper(current_user, paper_tpl_id)
-    _time2 = datetime.datetime.utcnow()
-    current_app.logger.info('[TimeDebug][init_exam_v2 init_paper]%s' % (_time2 - _time1))
-    if not test_id:
-        current_app.logger.error('[InitExamFailure][new-exam]id:%s,name:%s' %
-                                 (current_user.id, current_user.name))
-        return jsonify(errors.Init_exam_failed)
+    resp = exam_client.initNewExam(exam_thrift.InitNewExamRequest(
+        userId=str(current_user.id),
+        templateId=paper_tpl_id
+    ))
+    if resp is None:
+        logging.error("[init_exam_v2] exam_client.initNewExam failed")
+        return jsonify(errors.Internal_error)
+    if resp.statusCode != 0:
+        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
+
+    # todo: change to rpc
     if Setting.LIMIT_EXAM_TIMES:
         current_user.remaining_exam_num -= 1
         current_user.save()
-    ExamSession.set(current_user.id, 'test_id', test_id)
+
+    ExamSession.set(current_user.id, 'test_id', resp.examId)
     ExamSession.set(current_user.id, 'testing', 'True')  # for find-left-exam
     return jsonify(errors.success())
 
@@ -352,7 +361,7 @@ def next_question_v2(question_num):
     if not resp.question:
         return jsonify(errors.Get_question_failed)
 
-    # log question id to user's historical questions
+    # log question id to user's historical questions  todo: change to rpc
     user = UserModel.objects(id=str(current_user.id)).first()
     user.questions_history.update({resp.question.id: datetime.datetime.utcnow()})
     user.save()
