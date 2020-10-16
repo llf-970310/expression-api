@@ -1,16 +1,17 @@
 namespace py user
 
 struct UserInfo {
-    1: optional string role,
+    1: required string role,
     2: optional string nickName,
     3: optional string email,
     4: optional string phone,
     5: optional string wechatId,
     6: optional i32 remainingExamNum,
-    7: optional i64 registerTime,
-    8: optional i64 lastLoginTime,
-    9: optional i64 vipStartTime,
-    10: optional i64 vipEndTime,
+    7: optional string registerTime,
+    8: optional string lastLoginTime,
+    9: optional string vipStartTime,
+    10: optional string vipEndTime,
+    11: optional list<string> questionHistory
 }
 
 struct AuthenticateRequest {
@@ -66,6 +67,15 @@ struct UpdateUserInfoResponse {
     2: required string statusMsg
 }
 
+struct CheckExamPermissionRequest {
+    1: required string userId
+}
+
+struct CheckExamPermissionResponse {
+    1: required i32 statusCode
+    2: required string statusMsg
+}
+
 service UserService {
     // 认证相关
     AuthenticateResponse authenticate(1: AuthenticateRequest request)
@@ -75,4 +85,7 @@ service UserService {
     CreateUserResponse createUser(1: CreateUserRequest request)
     GetUserInfoResponse getUserInfo(1: GetUserInfoRequest request)
     UpdateUserInfoResponse updateUserInfo(1: UpdateUserInfoRequest request)
+
+    // 判断是否有考试权限
+    CheckExamPermissionResponse checkExamPermission(1: CheckExamPermissionRequest request)
 }
