@@ -2,7 +2,7 @@
 # coding: utf-8
 #
 # Created by dylanchu on 19-2-25
-import logging
+
 import random
 import Levenshtein
 import time
@@ -48,7 +48,7 @@ def get_test_wav_info():
         userId=str(current_user.id)
     ))
     if resp is None:
-        logging.error("[get_test_wav_info] exam_client.initNewAudioTest failed")
+        current_app.logger.error("[get_test_wav_info] exam_client.initNewAudioTest failed")
         return jsonify(errors.Internal_error)
     if resp.statusCode != 0:
         return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
@@ -75,7 +75,7 @@ def get_test_wav_url():
         type=exam_thrift.ExamType.AudioTest
     ))
     if resp is None:
-        logging.error("[get_test_wav_url] exam_client.getFileUploadPath failed")
+        current_app.logger.error("[get_test_wav_url] exam_client.getFileUploadPath failed")
         return jsonify(errors.Internal_error)
     if resp.statusCode != 0:
         return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
@@ -146,7 +146,7 @@ def get_upload_url_v2(question_num):
         questionNum=int(question_num)
     ))
     if resp is None:
-        logging.error("[get_upload_url_v2] exam_client.getFileUploadPath failed")
+        current_app.logger.error("[get_upload_url_v2] exam_client.getFileUploadPath failed")
         return jsonify(errors.Internal_error)
     if resp.statusCode != 0:
         return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
@@ -284,7 +284,7 @@ def init_exam_v2(paper_tpl_id):
             userId=str(current_user.id)
         ))
         if resp is None:
-            logging.error("[init_exam_v2] user_client.checkExamPermission failed")
+            current_app.logger.error("[init_exam_v2] user_client.checkExamPermission failed")
             return jsonify(errors.Internal_error)
         if resp.statusCode != 0:
             return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
@@ -295,7 +295,7 @@ def init_exam_v2(paper_tpl_id):
         templateId=paper_tpl_id
     ))
     if resp is None:
-        logging.error("[init_exam_v2] exam_client.initNewExam failed")
+        current_app.logger.error("[init_exam_v2] exam_client.initNewExam failed")
         return jsonify(errors.Internal_error)
     if resp.statusCode != 0:
         return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
@@ -351,7 +351,7 @@ def next_question_v2(question_num):
         questionNum=next_question_num
     ))
     if resp is None:
-        logging.error("[next_question_v2] exam_client.getQuestionInfo failed")
+        current_app.logger.error("[next_question_v2] exam_client.getQuestionInfo failed")
         return jsonify(errors.Internal_error)
     if resp.statusCode != 0:
         if resp.statusCode == errors.Exam_finished["code"]:
