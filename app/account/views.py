@@ -9,8 +9,8 @@ from flask import request, current_app, jsonify
 from flask_login import current_user, login_required
 
 from app import errors
-from app.utils.dto_converter import exam_score_convert_to_json, exam_report_convert_to_json
-from client import exam_client, exam_thrift
+from app.utils.dto_converter import exam_score_convert_to_json, exam_report_convert_to_json, user_info_convert_to_json
+from client import exam_client, exam_thrift, user_thrift, user_client
 from . import account
 
 from app.utils.date_and_time import datetime_to_str
@@ -84,20 +84,16 @@ def unbind_wx():
 @account.route('/info', methods=['GET'])
 @login_required
 def get_info():
-    current_app.logger.debug('[GetAccountInfo][get_info]%s' % current_user)
-    return jsonify(errors.success({
-        'role': str(current_user.role.value),
-        'name': current_user.name,
-        'email': current_user.email if current_user.email is not None else current_user.phone,
-        'password': '********',
-        'register_time': datetime_to_str(current_user.register_time),
-        'last_login_time': datetime_to_str(current_user.last_login_time),
-        # 'questions_history': current_user.questions_history,
-        'wx_id': current_user.wx_id,
-        'vip_start_time': datetime_to_str(current_user.vip_start_time),
-        'vip_end_time': datetime_to_str(current_user.vip_end_time),
-        'remaining_exam_num': current_user.remaining_exam_num
-    }))
+    resp = user_client.getUserInfo(user_thrift.GetUserInfoRequest(
+        userId=str(current_user.id)
+    ))
+    if resp is None:
+        current_app.logger.error("[get_info] user_client.getUserInfo failed")
+        return jsonify(errors.Internal_error)
+    if resp.statusCode != 0:
+        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
+
+    return jsonify(errors.success(user_info_convert_to_json(resp.userInfo)))
 
 
 @account.route('/history-scores/<tpl_id>', methods=['GET'])

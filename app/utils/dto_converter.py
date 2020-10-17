@@ -37,3 +37,18 @@ def question_info_convert_to_json(question) -> dict:
         "examLeftTime": question.examLeftTime,
         "examTime": question.examTime
     }
+
+
+def user_info_convert_to_json(user_info) -> dict:
+    return {
+        'role': user_info.role,
+        'name': user_info.nickName,
+        'email': user_info.email if user_info.email is not None else user_info.phone,
+        'register_time': user_info.registerTime,
+        'last_login_time': user_info.lastLoginTime,
+        # 'questions_history': current_user.questions_history,
+        'wx_id': user_info.wechatId,
+        'vip_start_time': user_info.vipStartTime,
+        'vip_end_time': user_info.vipEndTime,
+        'remaining_exam_num': user_info.remainingExamNum
+    }
