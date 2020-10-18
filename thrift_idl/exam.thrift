@@ -45,6 +45,13 @@ struct QuestionInfo {
     10: optional double examLeftTime  // 测试剩余时长，单位秒
 }
 
+struct ExamTemplate {
+    1: required string id
+    2: required string name
+    3: required string description
+    4: required i32 questionCount  // 题目个数
+}
+
 struct GetExamReportRequest {
     1: required string examId
 }
@@ -122,12 +129,24 @@ struct GetFileUploadPathResponse {
     4: required string statusMsg
 }
 
+struct GetPaperTemplateRequest {
+    1: optional string templateId
+}
+
+struct GetPaperTemplateResponse {
+    1: required list<ExamTemplate> templateList
+    2: required i32 statusCode
+    3: required string statusMsg
+}
+
 service ExamService {
     // 初始化音频测试题
     InitNewAudioTestResponse initNewAudioTest(1: InitNewAudioTestRequest request)
     // 初始化正式测试题
     InitNewExamResponse initNewExam(1: InitNewExamRequest request)
 
+    // 获取试卷模板信息
+    GetPaperTemplateResponse getPaperTemplate(1: GetPaperTemplateRequest request)
     // 获取题目信息
     GetQuestionInfoResponse getQuestionInfo(1: GetQuestionInfoRequest request)
     // 获取音频文件的上传路径

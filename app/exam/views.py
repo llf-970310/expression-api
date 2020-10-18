@@ -22,7 +22,6 @@ from client import exam_client, exam_thrift, user_client, user_thrift
 from . import exam
 from .exam_config import PathConfig, ExamConfig, QuestionConfig, DefaultValue, Setting, ReportConfig
 from .utils.session import ExamSession
-from app.paper import PaperUtils
 from app.paper import compute_exam_score
 from .utils.misc import get_server_date_str
 
@@ -256,16 +255,36 @@ def get_result():
 @exam.route('/paper-templates', methods=['GET'])
 @login_required
 def get_paper_templates():
-    tpl_lst = PaperUtils.get_templates()
+    resp = exam_client.getPaperTemplate(exam_thrift.GetPaperTemplateRequest())
+    if resp is None:
+        current_app.logger.error("[get_paper_templates] exam_client.getPaperTemplate failed")
+        return jsonify(errors.Internal_error)
+    if resp.statusCode != 0:
+        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
+
+    tpl_lst = []
+    for item in resp.templateList:
+        tpl_lst.append({
+            'tpl_id': item.id,
+            'name': item.name,
+            'desc': item.description,
+        })
     return jsonify(errors.success({'paperTemplates': tpl_lst}))
 
 
 @exam.route('/paper-templates/<paper_tpl_id>/total', methods=['GET'])
 @login_required
 def get_question_num_of_tpl(paper_tpl_id):
-    template = PaperTemplate.objects(id=paper_tpl_id).first()
-    total = len(template.questions)
-    return jsonify(errors.success({'total': total}))
+    resp = exam_client.getPaperTemplate(exam_thrift.GetPaperTemplateRequest(
+        templateId=paper_tpl_id
+    ))
+    if resp is None:
+        current_app.logger.error("[get_question_num_of_tpl] exam_client.getPaperTemplate failed")
+        return jsonify(errors.Internal_error)
+    if resp.statusCode != 0:
+        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
+
+    return jsonify(errors.success({'total': resp.templateList[0].questionCount}))
 
 
 # init exam
