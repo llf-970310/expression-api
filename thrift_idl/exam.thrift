@@ -139,6 +139,28 @@ struct GetPaperTemplateResponse {
     3: required string statusMsg
 }
 
+struct GetAudioTestResultRequest {
+    1: optional string examId
+}
+
+struct GetAudioTestResultResponse {
+    1: required bool canRecognize
+    2: required double levenshteinRatio
+    3: required i32 statusCode
+    4: required string statusMsg
+}
+
+struct GetExamResultRequest {
+    1: required string examId
+}
+
+struct GetExamResultResponse {
+    1: required ExamReport report
+    2: required ExamScore score
+    3: required i32 statusCode
+    4: required string statusMsg
+}
+
 service ExamService {
     // 初始化音频测试题
     InitNewAudioTestResponse initNewAudioTest(1: InitNewAudioTestRequest request)
@@ -152,7 +174,11 @@ service ExamService {
     // 获取音频文件的上传路径
     GetFileUploadPathResponse getFileUploadPath(1: GetFileUploadPathRequest request)
 
-    // 获取测试报告（分数直接取数据库）
+    // 获取音频测试（试音）结果
+    GetAudioTestResultResponse getAudioTestResult(1: GetAudioTestResultRequest request)
+    // 获取正式测试结果
+    GetExamResultResponse getExamResult(1: GetExamResultRequest request)
+    // 获取历史测试报告（分数直接取数据库）
     GetExamReportResponse getExamReport(1: GetExamReportRequest request)
     // 获取测试分数（有分数直接取，无分数会计算并保存）
     ComputeExamScoreResponse computeExamScore(1: ComputeExamScoreRequest request)

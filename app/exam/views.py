@@ -4,25 +4,22 @@
 # Created by dylanchu on 19-2-25
 
 import random
-import Levenshtein
 import time
 
 from flask import request, current_app, jsonify
 from flask_login import current_user, login_required
 
 from app import errors
-from app.exam.manager.exam import get_exam_by_id, get_score_and_feature
-from app.exam.manager.report import generate_report
+from app.admin.admin_config import ScoreConfig
 from app.models.exam import *
 from app.async_tasks import MyCelery
-from app.models.paper_template import PaperTemplate
 from app.models.user import UserModel
-from app.utils.dto_converter import question_info_convert_to_json
+from app.utils.dto_converter import question_info_convert_to_json, exam_score_convert_to_json, \
+    exam_report_convert_to_json
 from client import exam_client, exam_thrift, user_client, user_thrift
 from . import exam
-from .exam_config import PathConfig, ExamConfig, QuestionConfig, DefaultValue, Setting, ReportConfig
+from .exam_config import PathConfig, ExamConfig, DefaultValue, Setting
 from .utils.session import ExamSession
-from app.paper import compute_exam_score
 from .utils.misc import get_server_date_str
 
 # TODO: 保存put_task接口返回的ret.id到redis，于查询考试结果时查验，减少读库次数
@@ -110,26 +107,23 @@ def upload_test_wav_success():
 @login_required
 def get_pretest_result_v2():
     test_id = request.args.get('testId')
-    wav_pretest = WavPretestModel.objects(id=test_id).first()
-    test_info = 'test_id: %s, user name: %s' % (test_id, current_user.name)
-    if wav_pretest is None:
-        current_app.logger.error('[Not Found][get_pretest_result]%s' % test_info)
-        return jsonify(errors.Test_not_exist)
-    status = wav_pretest['result']['status']
-    if status == 'handling':
-        return jsonify(errors.WIP)
-    elif status == 'finished':
-        current_app.logger.info('[Success][get_test_result]%s' % test_info)
-        rcg_text = wav_pretest['result']['feature']['rcg_text']
-        lev_ratio = Levenshtein.ratio(rcg_text, wav_pretest['text'])
-        d = {
-            "qualityIsOk": lev_ratio >= 0.6,
+
+    resp = exam_client.getAudioTestResult(exam_thrift.GetAudioTestResultRequest(
+        examId=test_id
+    ))
+    if resp is None:
+        current_app.logger.error("[get_pretest_result_v2] exam_client.getAudioTestResult failed")
+        return jsonify(errors.Internal_error)
+    if resp.statusCode != 0:
+        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
+
+    if resp.canRecognize:
+        return jsonify(errors.success({
+            "qualityIsOk": resp.levenshteinRatio >= 0.6,
             "canRcg": True,
-            "levRatio": lev_ratio
-        }
-        return jsonify(errors.success(d))
+            "levRatio": resp.levenshteinRatio
+        }))
     else:
-        current_app.logger.info('[Bad Quality][get_test_result]%s' % test_info)
         return jsonify(errors.success({"canRcg": False, "qualityIsOk": False}))
 
 
@@ -208,48 +202,31 @@ def upload_success_v2(question_num):
 @exam.route('/result', methods=['GET'])
 @login_required
 def get_result():
-    # current_app.logger.debug("get_result: user_name: " + current_user.name)
     last_test_id = ExamSession.get(current_user.id, "last_test_id", DefaultValue.test_id)
     if not last_test_id:
         return jsonify(errors.Check_history_results)
 
-    test = get_exam_by_id(last_test_id)
-    if test is None:
-        return jsonify(errors.Exam_not_exist)
+    resp = exam_client.getExamResult(exam_thrift.GetExamResultRequest(
+        examId=last_test_id
+    ))
+    if resp is None:
+        current_app.logger.error("[get_result] exam_client.getExamResult failed")
+        return jsonify(errors.Internal_error)
+    if resp.statusCode != 0:
+        # 正在处理
+        if resp.statusCode == errors.WIP['code']:
+            try_times = int(ExamSession.get(current_user.id, "tryTimes", 0)) + 1
+            ExamSession.set(current_user.id, 'tryTimes', str(try_times))
+            current_app.logger.info("[get_result] handling!!! try times: %s, test_id: %s, user name: %s" %
+                                    (str(try_times), last_test_id, current_user.name))
+        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
 
-    questions = test['questions']
-    has_handling, score, feature = get_score_and_feature(questions)
-
-    # 判断该测试是否超时
-    in_process = datetime.datetime.utcnow() < test.test_expire_time
-    current_app.logger.info("get_result: in_process: %s, test_id: %s, user name: %s" %
-                            (str(in_process), last_test_id, current_user.name))
-    # 如果回答完问题或超时但已处理完，则计算得分，否则返回正在处理
-    if (len(score) == len(questions)) or (not in_process and not has_handling):
-        # final score:
-        if not test['score_info']:
-            current_app.logger.info("get_result: first compute score... test_id: %s, user name: %s" %
-                                    (last_test_id, current_user.name))
-            test['score_info'] = compute_exam_score(score, test.paper_type)
-            test.save()
-            result = {"status": "Success", "totalScore": test['score_info']['total'], "data": test['score_info']}
-        else:
-            current_app.logger.info("get_result: use computed score! test_id: %s, user name: %s" %
-                                    (last_test_id, current_user.name))
-            result = {"status": "Success", "totalScore": test['score_info']['total'], "data": test['score_info']}
-
-        report = generate_report(feature, score, test.paper_type)
-        result['report'] = report
-        ExamSession.set(current_user.id, 'tryTimes', 0)
-        current_app.logger.info("get_result: return data! test_id: %s, user name: %s, result: %s" %
-                                (last_test_id, current_user.name, str(result)))
-        return jsonify(errors.success(result))
-    else:
-        try_times = int(ExamSession.get(current_user.id, "tryTimes", 0)) + 1
-        ExamSession.set(current_user.id, 'tryTimes', str(try_times))
-        current_app.logger.info("get_result: handling!!! try times: %s, test_id: %s, user name: %s" %
-                                (str(try_times), last_test_id, current_user.name))
-        return jsonify(errors.WIP)
+    return jsonify(errors.success({
+        "status": "Success",
+        "totalScore": format(resp.score.total, ScoreConfig.DEFAULT_NUM_FORMAT),
+        "data": exam_score_convert_to_json(resp.score),  # 这个表示成绩信息，为兼容旧系统就不改了...
+        "report": exam_report_convert_to_json(resp.report)
+    }))
 
 
 @exam.route('/paper-templates', methods=['GET'])
