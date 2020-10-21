@@ -1,4 +1,5 @@
 from app.admin.admin_config import ScoreConfig
+from app.admin.util import array2str
 
 
 def exam_score_convert_to_json(score) -> dict:
@@ -51,4 +52,23 @@ def user_info_convert_to_json(user_info) -> dict:
         'vip_start_time': user_info.vipStartTime,
         'vip_end_time': user_info.vipEndTime,
         'remaining_exam_num': user_info.remainingExamNum
+    }
+
+
+def invitation_code_convert_to_json(invitation_code) -> dict:
+    return {
+        'code': invitation_code.code,
+        'creator': invitation_code.creator,
+        # 邀请码创建时间
+        'create_time': invitation_code.createTime,
+        # 邀请码剩余可用次数
+        'available_times': invitation_code.availableTimes,
+        # 邀请码有效时间
+        'vip_start_time': invitation_code.vipStartTime,
+        'vip_end_time': invitation_code.vipEndTime,
+        # 此邀请码支持的测试次数
+        'remaining_exam_num': invitation_code.remainingExamNum,
+        'remaining_exercise_num': invitation_code.remainingExerciseNum,
+        # 使用此邀请码的用户
+        'activate_users': array2str(invitation_code.activateUsers, 1)
     }

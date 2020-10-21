@@ -43,28 +43,16 @@ def update():
 @account.route('/update-privilege/<code>', methods=['POST'])
 @login_required
 def update_privilege(code):
-    # todo 从这开始需要同步
-    existing_invitation = InvitationModel.objects(code=code).first()
-    if existing_invitation is None or existing_invitation.available_times <= 0:
-        return jsonify(errors.Illegal_invitation_code)
-    # 修改这个邀请码
-    existing_invitation.activate_users.append(current_user.email if current_user.email else current_user.phone)
-    if existing_invitation.available_times <= 0:
-        return jsonify(errors.Invitation_code_invalid)
-    existing_invitation.available_times -= 1
-    current_app.logger.debug('invitation info: %s' % existing_invitation.__str__())
-    existing_invitation.save()
-    # todo 同步结束
-    current_app.logger.info('[UpdatePrivilege][update_privilege]email:%s, phone:%s' %
-                            (current_user.email, current_user.phone))
-    current_user.vip_start_time = existing_invitation.vip_start_time
-    current_user.vip_end_time = existing_invitation.vip_end_time
-    current_user.remaining_exam_num = existing_invitation.remaining_exam_num
-    # 这里需要添加一个邀请码信息
-    current_user.invitation_code = existing_invitation.code
-    current_app.logger.info('[UserInfo][update_privilege]%s' % current_user.__str__())
-    current_user.save()
-    current_app.logger.debug('user(id = %s) has been saved' % current_user.id)
+    resp = user_client.updateUserInfo(user_thrift.UpdateUserInfoRequest(
+        userId=str(current_user.id),
+        invitationCode=code
+    ))
+    if resp is None:
+        current_app.logger.error("[update_privilege] user_client.updateUserInfo failed")
+        return jsonify(errors.Internal_error)
+    if resp.statusCode != 0:
+        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
+
     return jsonify(errors.success())
 
 

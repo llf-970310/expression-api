@@ -12,6 +12,8 @@ from app.admin.util import *
 from app.auth.util import admin_login_required
 from app.models.invitation import InvitationModel
 from app import errors
+from app.utils.dto_converter import invitation_code_convert_to_json
+from client import user_client, user_thrift
 from . import admin
 import datetime
 from app.utils.date_and_time import datetime_fromisoformat  # for py3.6
@@ -100,8 +102,8 @@ def get_invitations():
         "pageSize": int,     默认 10
         "conditions": {      可选
             "code": str,
-            "createTimeFrom": "2019-11-20 00:00:00",
-            "createTimeTo": "2019-11-22 00:00:00",
+            "createTimeFrom": "2019-11-20 00:00:00",  // utc
+            "createTimeTo": "2019-11-22 00:00:00",  // utc
             "availableTimes": int
         }
 
@@ -117,59 +119,33 @@ def get_invitations():
           }
         }
     """
-    try:
-        conditions = json.loads(request.args.get('conditions'))
-        create_time_from = conditions.get('createTimeFrom')
-        create_time_to = conditions.get('createTimeTo')
-        available_times = conditions.get('availableTimes')
-        specify_code = conditions.get('code')
-        cp = int(request.args.get('currentPage', 1))
-        ps = int(request.args.get('pageSize', 10))
-        if cp < 1:
-            cp = 1
-        if ps < 0:
-            ps = 10
-        n_from = ps * (cp - 1)
-        n_to = n_from + ps
-        d = {}
-        time_limits = {}
-        if create_time_from:
-            time_limits.update({'$gte': datetime_fromisoformat(create_time_from)})
-        if create_time_to:
-            time_limits.update({'$lte': datetime_fromisoformat(create_time_to)})
-        if time_limits != {}:
-            d.update({'create_time': time_limits})
-        if available_times not in [None, '']:
-            d.update({'available_times': int(available_times)})
-        if specify_code:
-            d.update({'code': specify_code})
-    except Exception as e:
-        current_app.logger.error('Params_error:GET admin/accounts/invite: %s' % e)
-        return jsonify(errors.Params_error)
-    set_manager = InvitationModel.objects(__raw__=d)
-    invitations = set_manager[n_from:n_to]
-    total_count = set_manager.count()
+    conditions = json.loads(request.args.get('conditions'))
+    create_time_from = conditions.get('createTimeFrom')
+    create_time_to = conditions.get('createTimeTo')
+    available_times = conditions.get('availableTimes')
+    specify_code = conditions.get('code')
+    cp = int(request.args.get('currentPage', 1))
+    ps = int(request.args.get('pageSize', 10))
 
-    # wrap invitations
+    resp = user_client.getInvitationCode(user_thrift.GetInvitationCodeRequest(
+        invitationCode=specify_code,
+        createTimeFrom=create_time_from,
+        createTimeTo=create_time_to,
+        availableTimes=available_times,
+        page=cp,
+        pageSize=ps,
+    ))
+    if resp is None:
+        current_app.logger.error("[get_invitations] user_client.getInvitationCode failed")
+        return jsonify(errors.Internal_error)
+    if resp.statusCode != 0:
+        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
+
     result = []
-    for invitation in invitations:
-        result.append({
-            'code': invitation['code'],
-            'creator': invitation['creator'],
-            # 邀请码创建时间
-            'create_time': datetime_to_str(invitation['create_time']),
-            # 邀请码剩余可用次数
-            'available_times': invitation['available_times'],
-            # 邀请码有效时间
-            'vip_start_time': datetime_to_str(invitation['vip_start_time']),
-            'vip_end_time': datetime_to_str(invitation['vip_end_time']),
-            # 此邀请码支持的测试次数
-            'remaining_exam_num': invitation['remaining_exam_num'],
-            'remaining_exercise_num': invitation.remaining_exercise_num,
-            # 使用此邀请码的用户
-            'activate_users': array2str(invitation['activate_users'], 1)
-        })
+    for invitation in resp.invitationCodeList:
+        result.append(invitation_code_convert_to_json(invitation))
+
     return jsonify(errors.success({
-        'totalCount': total_count,
+        'totalCount': resp.total,
         'invitationCodes': result
     }))
