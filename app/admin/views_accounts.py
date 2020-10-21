@@ -3,21 +3,14 @@
 #
 # Created by dylanchu on 19-3-17
 
-# 该文件存放面向管理员的accounts相关views,与view无关的具体功能的实现请写在app/accounts/utils.py中,在此尽量只作引用
 import json
 from flask import request, current_app, jsonify
 from flask_login import current_user
-from app.admin.admin_config import AccountsConfig
-from app.admin.util import *
 from app.auth.util import admin_login_required
-from app.models.invitation import InvitationModel
 from app import errors
 from app.utils.dto_converter import invitation_code_convert_to_json
 from client import user_client, user_thrift
 from . import admin
-import datetime
-from app.utils.date_and_time import datetime_fromisoformat  # for py3.6
-from app.utils.date_and_time import datetime_to_str
 
 
 @admin.route('/accounts/invite', methods=['POST'])  # url will be .../admin/accounts/test
@@ -26,20 +19,12 @@ def accounts_invite():
     """批量创建邀请码
 
     Form-data Args:
-        vipStartTime: 评测权限开始时间
-        vipEndTime: 评测权限结束时间
+        vipStartTime: 评测权限开始时间（时间戳）
+        vipEndTime: 评测权限结束时间（时间戳）
         remainingExamNum: 邀请码包含的评测考试权限
         remainingExerciseNum: 邀请码包含的评测练习权限（暂未使用）
         availableTimes: 邀请码可用人数
         codeNum: 创建邀请码个数
-
-    form 校验规则:
-        1. vipStartTime必须在vipEndTime之前
-        2. vipEndTime必须在现在之后
-        3. remainingExamNum和remainingExerciseNum至少有一个>0（可用考试、练习次数）
-        4. availableTimes要大于0（邀请码可用人数）
-        5. codeNum要大于0（邀请码个数）
-        6. 各项不为空
 
     Returns:
         jsonify(errors.success({'msg': '生成邀请码成功', 'invitationCode': [...]}))
@@ -49,8 +34,8 @@ def accounts_invite():
     # 检验是否有权限申请邀请码
     form = request.form
     try:
-        vip_start_time = datetime.datetime.utcfromtimestamp(float(form.get('vipStartTime').strip()))
-        vip_end_time = datetime.datetime.utcfromtimestamp(float(form.get('vipEndTime').strip()))
+        vip_start_time = form.get('vipStartTime').strip()
+        vip_end_time = form.get('vipEndTime').strip()
         remaining_exam_num = int(form.get('remainingExamNum').strip())
         remaining_exercise_num = int(form.get('remainingExerciseNum').strip())
         available_times = int(form.get('availableTimes').strip())
@@ -58,38 +43,23 @@ def accounts_invite():
     except Exception as e:
         current_app.logger.error('Params_error:POST admin/accounts/invite: %s' % e)
         return jsonify(errors.Params_error)
-    # form 校验
-    if not vip_start_time and not vip_end_time and not available_times:
-        return jsonify(errors.Params_error)
-    if vip_start_time >= vip_end_time:  # rule 1
-        return jsonify(errors.Params_error)
-    if vip_end_time <= datetime.datetime.utcnow():  # rule 2
-        return jsonify(errors.Params_error)
-    if not (remaining_exam_num > 0 or remaining_exercise_num > 0):  # rule 3
-        return jsonify(errors.Params_error)
-    if available_times <= 0:  # rule 4
-        return jsonify(errors.Params_error)
-    if code_num <= 0:
-        return jsonify(errors.Params_error)
 
-    invitation_codes = []
-    for i in range(0, code_num):
-        invitation = InvitationModel()
-        invitation.creator = current_user.name
-        invitation.activate_users = []
-        invitation.vip_start_time = vip_start_time
-        invitation.vip_end_time = vip_end_time
-        invitation.remaining_exam_num = remaining_exam_num
-        invitation.remaining_exercise_num = remaining_exercise_num
-        invitation.available_times = available_times
-        invitation.code = generate_random_code(AccountsConfig.INVITATION_CODE_LEN)
-        invitation.create_time = datetime.datetime.utcnow()
-        current_app.logger.info('invitation info:%s' % invitation.__str__())
-        # 生成指定位数随机字符串为邀请码
-        invitation.save(invitation)
-        current_app.logger.info('invitation(id: %s)' % invitation.id)
-        invitation_codes.append(invitation.code)
-    return jsonify(errors.success({'msg': '生成邀请码成功', 'invitationCode': invitation_codes}))
+    resp = user_client.createInvitationCode(user_thrift.CreateInvitationCodeRequest(
+        creator=current_user.name,
+        availableTimes=available_times,
+        vipStartTime=vip_start_time,
+        vipEndTime=vip_end_time,
+        remainingExamNum=remaining_exam_num,
+        remainingExerciseNum=remaining_exercise_num,
+        codeNum=code_num,
+    ))
+    if resp is None:
+        current_app.logger.error("[accounts_invite] user_client.createInvitationCode failed")
+        return jsonify(errors.Internal_error)
+    if resp.statusCode != 0:
+        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
+
+    return jsonify(errors.success({'msg': '生成邀请码成功', 'invitationCode': resp.codeList}))
 
 
 @admin.route('/accounts/invite', methods=['GET'])

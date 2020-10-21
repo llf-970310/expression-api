@@ -90,13 +90,19 @@ struct CheckExamPermissionResponse {
 }
 
 struct CreateInvitationCodeRequest {
-    1: required string userId
-    2: optional string invitationCode
+    1: required string creator
+    2: optional i32 availableTimes
+    3: optional string vipStartTime
+    4: optional string vipEndTime
+    5: optional i32 remainingExamNum
+    6: optional i32 remainingExerciseNum
+    7: required i32 codeNum
 }
 
 struct CreateInvitationCodeResponse {
-    1: required i32 statusCode
-    2: required string statusMsg
+    1: required list<string> codeList
+    2: required i32 statusCode
+    3: required string statusMsg
 }
 
 struct GetInvitationCodeRequest {
