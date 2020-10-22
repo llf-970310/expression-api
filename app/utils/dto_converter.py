@@ -72,3 +72,15 @@ def invitation_code_convert_to_json(invitation_code) -> dict:
         # 使用此邀请码的用户
         'activate_users': array2str(invitation_code.activateUsers, 1)
     }
+
+
+def retelling_question_convert_to_json(question) -> dict:
+    return {
+        "questionId": question.questionIndex,
+        "rawText": question.rawText,
+        "keywords": question.keywords,
+        "detailwords": question.detailwords,
+        "upCount": question.feedbackUpCount,
+        "downCount": question.feedbackDownCount,
+        "usedTimes": question.usedTimes,
+    }

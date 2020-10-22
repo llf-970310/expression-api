@@ -15,8 +15,8 @@ class QuestionModel(db.DynamicDocument):
     q_type = db.IntField(min_value=1, max_value=6)  # type是留字，可能会有一些坑，故使用q_type
     # 1 朗读 2 复述 3 问答 4 选择 5 短文本英文阅读 6 长文本英文阅读
     used_times = db.IntField(min_value=0, default=0)
-    up_count = db.IntField(min_value=0, default=0)
-    down_count = db.IntField(min_value=0, default=0)
+    up_count = db.IntField(min_value=0, default=0)  # 疑似废弃字段？feedback_ups 替代
+    down_count = db.IntField(min_value=0, default=0)  # 疑似废弃字段？feedback_downs 替代
     wordbase = db.DictField(default={})
     weights = db.DictField(default={})
     questions = db.ListField(default=None)  # 选择题集合可以包含若干选择题

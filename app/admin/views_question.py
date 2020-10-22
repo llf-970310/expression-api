@@ -8,6 +8,8 @@ from app import errors
 from app.admin.admin_config import PaginationConfig
 from app.models.question import QuestionModel
 from app.models.origin import *
+from app.utils.dto_converter import retelling_question_convert_to_json
+from client import question_client, question_thrift
 from . import admin, util
 from .question_generator import generator
 from app.auth.util import admin_login_required
@@ -34,30 +36,22 @@ def get_all_type_two_questions():
     :return: 所有第二种类型的题目题目，可直接展示
     """
     (page, size) = __get_page_and_size_from_request_args(request.args)
-    current_app.logger.info('get_all_type_two_questions  page = %d, size = %d', page, size)
 
-    all_questions_num = len(QuestionModel.objects(q_type=2))
-
-    temp_question_query_max = page * size
-    question_query_max = all_questions_num if temp_question_query_max > all_questions_num \
-        else temp_question_query_max
-    questions = QuestionModel.objects(q_type=2)[((page - 1) * size):question_query_max].order_by('index')
+    resp = question_client.getRetellingQuestion(question_thrift.GetRetellingQuestionRequest(
+        page=page,
+        pageSize=size
+    ))
+    if resp is None:
+        current_app.logger.error("[get_all_type_two_questions] question_client.getRetellingQuestion failed")
+        return jsonify(errors.Internal_error)
+    if resp.statusCode != 0:
+        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
 
     data = []
-    for question in questions:
-        data.append({
-            "questionId": question['index'],
-            "rawText": question['text'],
-            "keywords": util.array2str(question['wordbase']['keywords'], 2),
-            "detailwords": util.array2str(question['wordbase']['detailwords'], 3),
-            "inOptimize": question['in_optimize'],
-            "lastOpDate": question['last_optimize_time'],
-            "optimized": question['auto_optimized'],
-            "upCount": question.up_count,
-            "downCount": question.down_count,
-            "usedTimes": question.used_times,
-        })
-    return jsonify(errors.success({"count": all_questions_num, "questions": data}))
+    for question in resp.questions:
+        data.append(retelling_question_convert_to_json(question))
+
+    return jsonify(errors.success({"count": resp.total, "questions": data}))
 
 
 def __get_page_and_size_from_request_args(args):
@@ -98,24 +92,16 @@ def get_question(index):
     :param index: 问题ID
     :return:  该问题详情
     """
-    current_app.logger.info('index:' + index)
-    result_question = QuestionModel.objects(index=index).first()
+    resp = question_client.getRetellingQuestion(question_thrift.GetRetellingQuestionRequest(
+        questionIndex=int(index)
+    ))
+    if resp is None:
+        current_app.logger.error("[get_question] question_client.getRetellingQuestion failed")
+        return jsonify(errors.Internal_error)
+    if resp.statusCode != 0:
+        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
 
-    # 要获取的题目不存在
-    if not result_question:
-        return jsonify(errors.Question_not_exist)
-
-    # wrap question
-    context = {
-        "questionId": result_question['q_id'],
-        "rawText": result_question['text'],
-        "keywords": result_question['wordbase']['keywords'],
-        "detailwords": result_question['wordbase']['detailwords'],
-        "upCount": result_question.up_count,
-        "downCount": result_question.down_count,
-        "usedTimes": result_question.used_times,
-    }
-    return jsonify(errors.success(context))
+    return jsonify(errors.success(retelling_question_convert_to_json(resp.questions[0])))
 
 
 @admin.route('/question/<index>', methods=['DELETE'])
