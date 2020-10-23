@@ -121,16 +121,18 @@ def del_question(index):
     :param index: 问题ID
     :return:  该问题详情
     """
-    # 检验是否有权限申请邀请码
     current_app.logger.info('delete question, index:' + index)
-    to_delete_question = QuestionModel.objects(index=index).first()
 
-    # 要获取的题目不存在
-    if not to_delete_question:
-        return jsonify(errors.Question_not_exist)
-    else:
-        to_delete_question.delete()
-        return jsonify(errors.success())
+    resp = question_client.delQuestion(question_thrift.DelQuestionRequest(
+        questionIndex=int(index)
+    ))
+    if resp is None:
+        current_app.logger.error("[del_question] question_client.delQuestion failed")
+        return jsonify(errors.Internal_error)
+    if resp.statusCode != 0:
+        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
+
+    return jsonify(errors.success())
 
 
 @admin.route('/question-from-pool', methods=['GET'])
@@ -162,13 +164,16 @@ def delete_specific_question_from_pool():
     """
     删除题库中题目
     """
-    id = request.form.get('idInPool')
 
-    origin_question = OriginTypeTwoQuestionModel.objects(q_id=id).first()
-    if not origin_question:
-        return jsonify(errors.Question_not_exist)
+    resp = question_client.delOriginalQuestion(question_thrift.DelOriginalQuestionRequest(
+        id=int(request.form.get('idInPool'))
+    ))
+    if resp is None:
+        current_app.logger.error("[delete_specific_question_from_pool] question_client.delOriginalQuestion failed")
+        return jsonify(errors.Internal_error)
+    if resp.statusCode != 0:
+        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
 
-    origin_question.delete()
     return jsonify(errors.success())
 
 

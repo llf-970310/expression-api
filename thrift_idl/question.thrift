@@ -37,9 +37,32 @@ struct GenerateWordbaseResponse {
     4: required string statusMsg
 }
 
+struct DelQuestionRequest {
+    1: required i32 questionIndex  // 题号
+}
+
+struct DelQuestionResponse {
+    2: required i32 statusCode
+    3: required string statusMsg
+}
+
+struct DelOriginalQuestionRequest {
+    1: required i32 id  // 对应数据库中 q_id 字段
+}
+
+struct DelOriginalQuestionResponse {
+    2: required i32 statusCode
+    3: required string statusMsg
+}
+
 service QuestionService {
     // 获取转述题信息
     GetRetellingQuestionResponse getRetellingQuestion(1: GetRetellingQuestionRequest request)
+    // 删除题目
+    DelQuestionResponse delQuestion(1: DelQuestionRequest request)
+    // 从原始题库删除题目
+    DelOriginalQuestionResponse delOriginalQuestion(1: DelOriginalQuestionRequest request)
+
     // 根据文本生成关键词和细节词
     GenerateWordbaseResponse generateWordbase(1: GenerateWordbaseRequest request)
 }
