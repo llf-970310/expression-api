@@ -26,6 +26,20 @@ struct GetRetellingQuestionResponse {
     4: required string statusMsg
 }
 
+struct GenerateWordbaseRequest {
+    1: required string text
+}
+
+struct GenerateWordbaseResponse {
+    1: required list<list<string>> keywords
+    2: required list<list<list<string>>> detailwords
+    3: required i32 statusCode
+    4: required string statusMsg
+}
+
 service QuestionService {
+    // 获取转述题信息
     GetRetellingQuestionResponse getRetellingQuestion(1: GetRetellingQuestionRequest request)
+    // 根据文本生成关键词和细节词
+    GenerateWordbaseResponse generateWordbase(1: GenerateWordbaseRequest request)
 }

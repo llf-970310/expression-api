@@ -11,21 +11,30 @@ from app.models.origin import *
 from app.utils.dto_converter import retelling_question_convert_to_json
 from client import question_client, question_thrift
 from . import admin, util
-from .question_generator import generator
 from app.auth.util import admin_login_required
-
-wordbase_generator = generator.WordbaseGenerator()
 
 
 @admin.route('/generate-keywords', methods=['POST'])
 @admin_login_required
 def generate_wordbase_by_text():
-    """根据原文重新生成关键词
+    """根据原文重新生成关键词和细节词
 
-    :return: 分析后的关键词
+    :return: 分析后的关键词和细节词
     """
     text = request.form.get('text')
-    return jsonify(errors.success(wordbase_generator.generate_wordbase(text)))
+    resp = question_client.generateWordbase(question_thrift.GenerateWordbaseRequest(
+        text=text
+    ))
+    if resp is None:
+        current_app.logger.error("[generate_wordbase_by_text] question_client.generateWordbase failed")
+        return jsonify(errors.Internal_error)
+    if resp.statusCode != 0:
+        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
+
+    return jsonify(errors.success({
+        "keywords": resp.keywords,
+        "detailwords": resp.detailwords
+    }))
 
 
 @admin.route('/question-type-two', methods=['GET'])
