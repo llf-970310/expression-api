@@ -1,7 +1,7 @@
 namespace py question
 
 struct RetellingQuestion {
-    1: required i32 questionIndex  // 题号
+    1: optional i32 questionIndex  // 题号
     2: required string rawText
     3: required list<list<string>> keywords
     4: required list<list<list<string>>> detailwords
@@ -55,9 +55,21 @@ struct DelOriginalQuestionResponse {
     3: required string statusMsg
 }
 
+struct SaveRetellingQuestionRequest {
+    1: required RetellingQuestion newQuestion
+}
+
+struct SaveRetellingQuestionResponse {
+    2: required i32 statusCode
+    3: required string statusMsg
+}
+
 service QuestionService {
     // 获取转述题信息
     GetRetellingQuestionResponse getRetellingQuestion(1: GetRetellingQuestionRequest request)
+    // 新增（修改）转述题信息
+    SaveRetellingQuestionResponse saveRetellingQuestion(1: SaveRetellingQuestionRequest request)
+
     // 删除题目
     DelQuestionResponse delQuestion(1: DelQuestionRequest request)
     // 从原始题库删除题目

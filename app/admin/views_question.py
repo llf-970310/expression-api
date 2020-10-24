@@ -185,50 +185,35 @@ def post_new_question():
     :return:
     """
     # 提取参数
-    if not current_user.is_authenticated:
-        return jsonify(errors.Login_required)
-    if not current_user.is_admin():
-        return jsonify(errors.Admin_login_required)
-
     is_from_pool = request.form.get('isFromPool')
     id_in_pool = request.form.get('idInPool')
     question_data_raw_text = request.form.get('data[rawText]')
-    question_wordbase = {
-        "keywords": json.loads(request.form.get('data[keywords]')),
-        "detailwords": json.loads(request.form.get('data[detailwords]')),
-    }
 
     if util.str_to_bool(is_from_pool):
-        # 词库导入时，需要删除原项，即从 origin_questions 中删除
-        origin_question = OriginTypeTwoQuestionModel.objects(q_id=id_in_pool).first()
-        if not origin_question:
-            return jsonify(errors.Question_not_exist)
-        else:
-            origin_question.delete()
+        # 题库导入时，需要删除原项，即从 origin_questions 中删除
+        resp = question_client.delOriginalQuestion(question_thrift.DelOriginalQuestionRequest(
+            id=id_in_pool
+        ))
+        if resp is None:
+            current_app.logger.error("[post_new_question] question_client.delOriginalQuestion failed")
+            return jsonify(errors.Internal_error)
+        if resp.statusCode != 0:
+            return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
 
-    # 进入 questions 的 q_id
-    next_q_index = __get_next_available_question_index()
-    current_app.logger.info('next_q_index: ' + next_q_index.__str__())
-    # 插入 questions，初始化关键词权重 weights
-    new_question = QuestionModel(
-        q_type=2,
-        level=5,
-        text=question_data_raw_text,
-        wordbase=question_wordbase,
-        weights=__reset_question_weights(question_wordbase),
-        index=next_q_index
-    )
-    new_question.save()
+    resp = question_client.saveRetellingQuestion(question_thrift.SaveRetellingQuestionRequest(
+        newQuestion=question_thrift.RetellingQuestion(
+            rawText=question_data_raw_text,
+            keywords=json.loads(request.form.get('data[keywords]')),
+            detailwords=json.loads(request.form.get('data[detailwords]')),
+        )
+    ))
+    if resp is None:
+        current_app.logger.error("[post_new_question] question_client.SaveRetellingQuestion failed")
+        return jsonify(errors.Internal_error)
+    if resp.statusCode != 0:
+        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
+
     return jsonify(errors.success())
-
-
-def __get_next_available_question_index():
-    """获取当前题目 question 中最大的题号
-
-    :return: 当前最大题号
-    """
-    max_question = QuestionModel.objects().order_by('-index').limit(1).first()
-    return max_question['index'] + 1
 
 
 @admin.route('/question', methods=['PUT'])
@@ -241,41 +226,19 @@ def modify_question():
 
     index = request.form.get('id')  # todo: change to REST api and change name 'id' to 'index'
     question_data_raw_text = request.form.get('data[rawText]')
-    question_wordbase = {
-        "keywords": json.loads(request.form.get('data[keywords]')),
-        "detailwords": json.loads(request.form.get('data[detailwords]')),
-    }
 
-    question = QuestionModel.objects(index=index).first()
-    if not question:
-        return jsonify(errors.Question_not_exist)
-
-    # 修改关键词的同时需要重置关键词权重
-    question.update(
-        text=question_data_raw_text,
-        wordbase=question_wordbase,
-        weights=__reset_question_weights(question_wordbase)
-    )
+    resp = question_client.saveRetellingQuestion(question_thrift.SaveRetellingQuestionRequest(
+        newQuestion=question_thrift.RetellingQuestion(
+            questionIndex=int(index),
+            rawText=question_data_raw_text,
+            keywords=json.loads(request.form.get('data[keywords]')),
+            detailwords=json.loads(request.form.get('data[detailwords]')),
+        )
+    ))
+    if resp is None:
+        current_app.logger.error("[modify_question] question_client.SaveRetellingQuestion failed")
+        return jsonify(errors.Internal_error)
+    if resp.statusCode != 0:
+        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
 
     return jsonify(errors.success())
-
-
-def __reset_question_weights(wordbase):
-    """
-    1。 重置问题关键词的权重：权重的数量等于词的数量加一，每个词的权重=100/权重的数量
-    2。 重置权重的击中次数为0
-    """
-    weights = {}
-    len_keywords = len(wordbase['keywords'])
-    len_detailwords = len(reduce(lambda x, y: x + y, wordbase['detailwords']))
-
-    # 重置问题关键词的权重
-    key_init = 100 / (len_keywords + 1)
-    detail_init = 100 / (len_detailwords + 1)
-    weights['key'] = [key_init for i in range(len_keywords + 1)]
-    weights['detail'] = [detail_init for i in range(len_detailwords + 1)]
-
-    # 重置权重的击中次数为0
-    weights['key_hit_times'] = [0 for i in range(len_keywords)]
-    weights['detail_hit_times'] = [0 for i in range(len_detailwords)]
-    return weights
