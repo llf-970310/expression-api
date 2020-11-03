@@ -6,11 +6,19 @@
 from celery import Celery
 from collections import namedtuple
 
+from kombu import Queue
+
 pw = 'ise_expression'
-celery_broker = 'redis://:%s@106.13.160.74:6379/7' % pw
-celery_backend = celery_broker
+celery_broker = 'amqp://admin:%s@106.13.160.74:5672/' % pw
+celery_backend = 'redis://:%s@106.13.160.74:6379/7' % pw
 
 app = Celery('tasks', broker=celery_broker, backend=celery_backend)
+app.conf.task_queues = (
+    Queue('q_type3', queue_arguments={'x-max-priority': 100}),
+    Queue('q_type12', queue_arguments={'x-max-priority': 2}),
+    Queue('q_pre_test', queue_arguments={'x-max-priority': 500}),
+    Queue('default', queue_arguments={'x-max-priority': 1}),
+)
 
 __Queue = namedtuple('Queue', 'pretest type12 type3')
 queues = __Queue('q_pre_test', 'q_type12', 'q_type3')
