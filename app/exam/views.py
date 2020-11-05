@@ -387,7 +387,7 @@ def find_left_exam():
             left_exam = CurrentTestModel.objects(id=test_id).first()
             # _time3 = datetime.datetime.utcnow()
             # current_app.logger.info('[TimeDebug][find_left_exam query-db]%s' % (_time3 - _time2))
-            if left_exam:
+            if left_exam and left_exam['test_expire_time'] > datetime.datetime.utcnow():
                 # 查找到第一个未做的题目
                 for key, value in left_exam['questions'].items():
                     status = value['status']
