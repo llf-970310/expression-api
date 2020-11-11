@@ -37,27 +37,15 @@ ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
 
-RUN pip3 install --no-cache-dir numpy scipy pycrypto gevent
+RUN pip3 install --no-cache-dir numpy scipy pycrypto pymongo && \
+    pip3 install --no-cache-dir requests uwsgi thrift thriftpy2 PyJWT
 
-RUN pip3 install --no-cache-dir pymongo
+RUN pip3 install --no-cache-dir flask Flask-Logger Flask-login flask-mongoengine Flask-Script Flask-Session && \
+    pip3 install --no-cache-dir 'Flask-APScheduler==1.11.0'
 
-RUN pip3 install --no-cache-dir redis 'kombu==4.6.3' 'celery[redis]==4.3.0' \
-    'tornado==5.1.1' flower 'celery-flower==1.0.1' 'vine==1.3.0'
-
-RUN pip3 install --no-cache-dir requests
-
-RUN pip3 install --no-cache-dir 'coverage==5.0.4' 'eventlet==0.25.1' 'Flask-APScheduler==1.11.0' && \
-    pip3 install --no-cache-dir flask Flask-Logger Flask-login flask-mongoengine  && \
-    pip3 install --no-cache-dir Flask-Script Flask-Session gevent importlib-metadata
-
-RUN pip3 install --no-cache-dir uwsgi uwsgitop && \
-    pip3 install --no-cache-dir python-jenkins && \
-    pip3 install --no-cache-dir thrift thriftpy2 PyJWT
-
-RUN pip3 install --no-cache-dir nose rednose 'smart-open==1.10.0'
+RUN pip3 install --no-cache-dir redis 'kombu==4.6.3' 'celery[redis]==4.3.0' 'vine==1.3.0'
 
 EXPOSE 5000
-EXPOSE 5555
 
 WORKDIR /expression-api
 COPY ./ /expression-api
