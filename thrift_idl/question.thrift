@@ -42,8 +42,8 @@ struct DelQuestionRequest {
 }
 
 struct DelQuestionResponse {
-    2: required i32 statusCode
-    3: required string statusMsg
+    1: required i32 statusCode
+    2: required string statusMsg
 }
 
 struct DelOriginalQuestionRequest {
@@ -51,8 +51,8 @@ struct DelOriginalQuestionRequest {
 }
 
 struct DelOriginalQuestionResponse {
-    2: required i32 statusCode
-    3: required string statusMsg
+    1: required i32 statusCode
+    2: required string statusMsg
 }
 
 struct SaveRetellingQuestionRequest {
@@ -60,8 +60,21 @@ struct SaveRetellingQuestionRequest {
 }
 
 struct SaveRetellingQuestionResponse {
-    2: required i32 statusCode
-    3: required string statusMsg
+    1: required i32 statusCode
+    2: required string statusMsg
+}
+
+struct SaveQuestionFeedbackRequest {
+    1: required string questionId
+    2: optional i32 upChange  // +1 or -1
+    3: optional i32 downChange  // +1 or -1
+    4: optional i32 likeChange  // +1 or -1
+    5: required string userId
+}
+
+struct SaveQuestionFeedbackResponse {
+    1: required i32 statusCode
+    2: required string statusMsg
 }
 
 service QuestionService {
@@ -69,6 +82,8 @@ service QuestionService {
     GetRetellingQuestionResponse getRetellingQuestion(1: GetRetellingQuestionRequest request)
     // 新增（修改）转述题信息
     SaveRetellingQuestionResponse saveRetellingQuestion(1: SaveRetellingQuestionRequest request)
+    // 点赞、点踩、收藏题目
+    SaveQuestionFeedbackResponse saveQuestionFeedback(1: SaveQuestionFeedbackRequest request)
 
     // 删除题目
     DelQuestionResponse delQuestion(1: DelQuestionRequest request)
