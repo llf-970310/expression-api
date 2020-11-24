@@ -33,9 +33,9 @@ struct ExamRecord {
 }
 
 struct QuestionInfo {
-    1: required string id
+    1: optional string id
     2: required string content
-    3: required i32 type  // 题型（0 表示音频测试题目，此时 id 为 wav_test_id）
+    3: required i32 type  // 题型（0 表示音频测试题目，此时 id 为 None）
     4: optional i32 questionNum  // 第几题
     5: required i32 readLimitTime  // 读题时长，单位秒
     6: required i32 answerLimitTime  // 答题时长，单位秒
@@ -117,9 +117,9 @@ struct GetQuestionInfoResponse {
 }
 
 struct GetFileUploadPathRequest {
-    1: required string examId
+    1: optional string examId
     2: required string userId
-    3: required ExamType type  // 1 音频测试 2 正式测试
+    3: required ExamType type  // 1 音频测试（无需 examId） 2 正式测试
     4: optional i32 questionNum
 }
 

@@ -15,9 +15,11 @@ app.config_from_object(celery_config)
 
 class MyCelery(object):
     @staticmethod
-    def put_task(q_type, test_id: str, q_num=None, use_lock=True):
+    def put_task(q_type, test_id: str = None, q_num=None, std_text=None, file_path=None, use_lock=True):
         """
         创建异步评分任务
+        :param file_path: 录音文件路径（for pretest）
+        :param std_text: 原始文本（for pretest）
         :param q_type: 在(pretest, 1, 2, 3)中选择
         :param test_id: string
         :param q_num: 需分析的题号，pretest时留空，其他情况不可留空
@@ -34,7 +36,7 @@ class MyCelery(object):
             if q_type == 'pretest':
                 # 此处名称应与 worker 端的 task_name 保持一致
                 # 不建议在此指定 queue，在 config 中使用 CELERY_ROUTES 配置
-                ret = app.send_task('analysis_pretest', args=(str(test_id),), priority=20)
+                ret = app.send_task('analysis_audio_test', args=(std_text, file_path), priority=20)
             elif q_type in [3, '3']:
                 ret = app.send_task('analysis_3', args=(str(test_id), str(q_num)), priority=10)
             elif q_type in [1, 2, 5, 6, '1', '2', '5', '6', 7, '7']:
