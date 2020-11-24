@@ -11,6 +11,7 @@ from flask_login import current_user, login_required
 
 from app import errors
 from app.admin.admin_config import ScoreConfig
+from app.async_tasks.celery_ops import app
 from app.models.exam import *
 from app.async_tasks import MyCelery
 from app.models.user import UserModel
@@ -23,7 +24,6 @@ from .utils.session import ExamSession
 from .utils.misc import get_server_date_str
 
 # TODO: 保存put_task接口返回的ret.id到redis，于查询考试结果时查验，减少读库次数
-# TODO: pretest完全使用任务队列完成，不使用数据库
 # TODO: 接口改为标准REST风格
 # TODO: get-upload-url时后端发放STS凭证供前端访问BOS，避免直接在前端存BOS凭证
 
@@ -54,19 +54,13 @@ def get_test_wav_info():
         "readLimitTime": resp.question.readLimitTime,
         "questionContent": resp.question.content,
         "questionInfo": resp.question.questionTip,
-        "testId": resp.question.id
     }))
 
 
 @exam.route('/pretest-wav-url', methods=['GET'])
 @login_required
 def get_test_wav_url():
-    test_id = request.args.get('testId')
-    if not test_id:
-        return jsonify(errors.Params_error)
-
     resp = exam_client.getFileUploadPath(exam_thrift.GetFileUploadPathRequest(
-        examId=test_id,
         userId=str(current_user.id),
         type=exam_thrift.ExamType.AudioTest
     ))
@@ -79,52 +73,41 @@ def get_test_wav_url():
     return jsonify(errors.success({
         "fileLocation": "BOS",
         "url": resp.path,
-        "test_id": test_id
     }))
 
 
 @exam.route('/pretest-analysis', methods=['POST'])
 @login_required
 def upload_test_wav_success():
-    test_id = request.form.get('testId')
-    wav_test = WavPretestModel.objects(id=test_id).first()
-    if not wav_test:
-        current_app.logger.error("[PretestNotExist][upload_test_wav_success]test id: %s, user name: %s" %
-                                 (test_id, current_user.name))
-        return jsonify(errors.success(errors.Test_not_exist))
-    wav_test.update(set__result__status='handling')
-    _, err = MyCelery.put_task('pretest', test_id)
-    if err:
-        current_app.logger.error('[PutTaskException][upload_test_wav_success]test_id:%s,'
-                                 'exception:\n%s' % (test_id, err))
-        return jsonify(errors.exception({'Exception': str(err)}))
-    current_app.logger.info("upload_test_wav_success: return data! test id: %s, user name: %s" %
-                            (test_id, current_user.name))
+    file_path = request.form.get('filePath')
+    std_text = request.form.get('stdText')
+    result_id, err = MyCelery.put_task('pretest', std_text=std_text, file_path=file_path)
+    ExamSession.set(current_user.id, 'pretest_result_id', result_id, ex=300)
+    current_app.logger.info("[upload_test_wav_success] put task into celery successful. "
+                            "AsyncResult id: %s, user name: %s" % (result_id, current_user.name))
     return jsonify(errors.success())
 
 
 @exam.route('/pretest-result', methods=['GET'])
 @login_required
-def get_pretest_result_v2():
-    test_id = request.args.get('testId')
-
-    resp = exam_client.getAudioTestResult(exam_thrift.GetAudioTestResultRequest(
-        examId=test_id
-    ))
-    if resp is None:
-        current_app.logger.error("[get_pretest_result_v2] exam_client.getAudioTestResult failed")
+def get_pretest_result():
+    async_result_id = ExamSession.get(current_user.id, "pretest_result_id", default=None)
+    if not async_result_id:
         return jsonify(errors.Internal_error)
-    if resp.statusCode != 0:
-        return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
 
-    if resp.canRecognize:
-        return jsonify(errors.success({
-            "qualityIsOk": resp.levenshteinRatio >= 0.6,
-            "canRcg": True,
-            "levRatio": resp.levenshteinRatio
-        }))
+    async_result = app.AsyncResult(async_result_id)
+    if async_result.ready():
+        result = async_result.get()
+        if result['status'] != 'error':
+            return jsonify(errors.success({
+                "qualityIsOk": result['lev_ratio'] >= 0.6,
+                "canRcg": True,
+                "levRatio": result['lev_ratio']
+            }))
+        else:
+            return jsonify(errors.success({"canRcg": False, "qualityIsOk": False}))
     else:
-        return jsonify(errors.success({"canRcg": False, "qualityIsOk": False}))
+        return jsonify(errors.WIP)
 
 
 @exam.route('/<question_num>/upload-url', methods=['GET'])

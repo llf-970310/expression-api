@@ -20,7 +20,7 @@ CELERY_DEFAULT_ROUTING_KEY = 'default'
 CELERY_ROUTES = {
     # -- HIGH PRIORITY QUEUE -- #
     'analysis_3': {'queue': 'q_type3'},
-    'analysis_pretest': {'queue': 'q_pre_test'},
+    'analysis_audio_test': {'queue': 'q_pre_test'},
     # -- LOW PRIORITY QUEUE -- #
     'analysis_12': {'queue': 'q_type12'},
 }
