@@ -1,4 +1,5 @@
 from celery import Celery
+from flask_login import current_user
 
 from app.async_tasks import celery_config
 from celery.result import AsyncResult
@@ -36,7 +37,8 @@ class MyCelery(object):
             if q_type == 'pretest':
                 # 此处名称应与 worker 端的 task_name 保持一致
                 # 不建议在此指定 queue，在 config 中使用 CELERY_ROUTES 配置
-                ret = app.send_task('analysis_audio_test', args=(std_text, file_path), priority=20)
+                nick_name = current_user.name
+                ret = app.send_task('analysis_audio_test', args=(std_text, file_path, nick_name), priority=20)
             elif q_type in [3, '3']:
                 ret = app.send_task('analysis_3', args=(str(test_id), str(q_num)), priority=10)
             elif q_type in [1, 2, 5, 6, '1', '2', '5', '6', 7, '7']:
