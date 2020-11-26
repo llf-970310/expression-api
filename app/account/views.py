@@ -3,8 +3,6 @@
 #
 # Created by dylanchu on 19-3-17
 
-# 该文件存放面向用户的accounts相关views,与view无关的具体功能的实现请写在utils.py中,在此尽量只作引用
-
 from flask import request, current_app, jsonify
 from flask_login import current_user, login_required
 
@@ -12,9 +10,6 @@ from app import errors
 from app.utils.dto_converter import exam_score_convert_to_json, exam_report_convert_to_json, user_info_convert_to_json
 from client import exam_client, exam_thrift, user_thrift, user_client
 from . import account
-
-from app.utils.date_and_time import datetime_to_str
-from app.models.invitation import InvitationModel
 
 
 @account.route('/update', methods=['POST'])
