@@ -4,6 +4,7 @@
 # Created by dylanchu on 20-3-08
 
 import datetime
+import logging
 from functools import wraps
 
 from app_config import redis_client
@@ -17,6 +18,8 @@ def mutex_with_redis(lock_time):
             val = str(datetime.datetime.utcnow())
             if redis_client.set(key, val, ex=lock_time, nx=True):
                 func(*args, **kwargs)
+            else:
+                logging.warning("redis lock. func: " + func.__name__)
 
         return wrapper
 
