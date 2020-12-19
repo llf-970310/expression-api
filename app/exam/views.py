@@ -224,11 +224,11 @@ def get_paper_templates():
 
     tpl_lst = []
     for item in resp.templateList:
-        tpl_lst.append({
-            'tpl_id': item.id,
-            'name': item.name,
-            'desc': item.description,
-        })
+        if not item.isDeprecated:
+            tpl_lst.append({
+                'tpl_id': item.id,
+                'name': item.name
+            })
     return jsonify(errors.success({'paperTemplates': tpl_lst}))
 
 

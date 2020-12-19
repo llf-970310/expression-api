@@ -47,9 +47,11 @@ struct QuestionInfo {
 
 struct ExamTemplate {
     1: required string id
-    2: required string name
-    3: required string description
-    4: required i32 questionCount  // 题目个数
+    2: optional string name
+    3: optional string description // 题目组成
+    4: optional i32 questionCount  // 题目个数
+    5: optional bool isDeprecated  // 是否已弃用
+    6: optional i32 duration  // 评测时间，单位为秒
 }
 
 struct GetExamReportRequest {
@@ -161,6 +163,15 @@ struct GetExamResultResponse {
     4: required string statusMsg
 }
 
+struct SavePaperTemplateRequest {
+    1: required ExamTemplate newTemplate
+}
+
+struct SavePaperTemplateResponse {
+    1: required i32 statusCode
+    2: required string statusMsg
+}
+
 service ExamService {
     // 初始化音频测试题
     InitNewAudioTestResponse initNewAudioTest(1: InitNewAudioTestRequest request)
@@ -184,4 +195,7 @@ service ExamService {
     ComputeExamScoreResponse computeExamScore(1: ComputeExamScoreRequest request)
     // 获取历史考试记录
     GetExamRecordResponse getExamRecord(1: GetExamRecordRequest request)
+
+    // 新增/修改 试卷模板
+    SavePaperTemplateResponse savePaperTemplate(1: SavePaperTemplateRequest request)
 }

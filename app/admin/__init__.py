@@ -9,4 +9,4 @@ from flask import Blueprint
 
 admin = Blueprint('admin', __name__)
 
-from . import views_accounts, views_exam, views_optimize, views_question, views_score
+from . import views_accounts, views_exam, views_optimize, views_question, views_score, views_paper_templates
