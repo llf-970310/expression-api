@@ -7,8 +7,8 @@ from flask import current_app
 from app_config import redis_client
 
 pw = 'ise_expression'
-celery_broker = 'amqp://admin:%s@106.13.160.74:5672/' % pw
-celery_backend = 'redis://:%s@106.13.160.74:6379/7' % pw
+celery_broker = 'amqp://admin:%s@rabbitmq-server.expression.hosts:5672/' % pw
+celery_backend = 'redis://:%s@redis-server.expression.hosts:6379/7' % pw
 
 app = Celery('tasks', broker=celery_broker, backend=celery_backend)
 app.config_from_object(celery_config)

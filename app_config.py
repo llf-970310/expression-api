@@ -6,7 +6,7 @@
 from redis import StrictRedis, ConnectionPool
 
 # redis_client = Redis(host='redis-server.expression.hosts', port=6379, db=0, password='ise_expression')
-pool = ConnectionPool(host='106.13.160.74', port=6379, db=0, password='ise_expression')
+pool = ConnectionPool(host='redis-server.expression.hosts', port=6379, db=0, password='ise_expression')
 redis_client = StrictRedis(connection_pool=pool)
 # redis_client = Redis(host='127.0.0.1', port=6379, db=0, password=None)
 
@@ -14,7 +14,7 @@ redis_client = StrictRedis(connection_pool=pool)
 class MongoConfig:
     # for apscheduler client
     # actually these information should be moved to .env file, then loaded here
-    host = '106.13.160.74'
+    host = 'mongo-server.expression.hosts'
     port = 27017
     # {
     # auth = None
