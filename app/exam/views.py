@@ -82,6 +82,9 @@ def upload_test_wav_success():
     file_path = request.form.get('filePath')
     std_text = request.form.get('stdText')
     result_id, err = MyCelery.put_task('pretest', std_text=std_text, file_path=file_path)
+    if err is not None:
+        current_app.logger.error("[upload_test_wav_success] put task into celery failed. exception: " + str(err))
+        return jsonify(errors.Internal_error)
     ExamSession.set(current_user.id, 'pretest_result_id', result_id, ex=300)
     current_app.logger.info("[upload_test_wav_success] put task into celery successful. "
                             "AsyncResult id: %s, user name: %s" % (result_id, current_user.name))
