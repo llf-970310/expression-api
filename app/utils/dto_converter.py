@@ -74,13 +74,15 @@ def invitation_code_convert_to_json(invitation_code) -> dict:
     }
 
 
-def retelling_question_convert_to_json(question) -> dict:
+def question_item_convert_to_json(question) -> dict:
     return {
-        "questionId": question.questionIndex,
+        "questionIndex": question.questionIndex,
         "rawText": question.rawText,
         "keywords": question.keywords,
         "detailwords": question.detailwords,
         "upCount": question.feedbackUpCount,
         "downCount": question.feedbackDownCount,
         "usedTimes": question.usedTimes,
+        "questionId": question.questionId,
+        "type": question.type
     }

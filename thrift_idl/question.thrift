@@ -1,6 +1,6 @@
 namespace py question
 
-struct RetellingQuestion {
+struct Question {
     1: optional i32 questionIndex  // 题号
     2: required string rawText
     3: required list<list<string>> keywords
@@ -11,16 +11,19 @@ struct RetellingQuestion {
     5: optional i32 feedbackUpCount
     6: optional i32 feedbackDownCount
     7: optional i32 usedTimes
+    8: optional i32 type
+    9: optional string questionId
 }
 
-struct GetRetellingQuestionRequest {
+struct GetQuestionListRequest {
     1: optional i32 questionIndex  // 题号
-    2: optional i32 page
-    3: optional i32 pageSize
+    2: optional i32 questionType
+    3: optional i32 page
+    4: optional i32 pageSize
 }
 
-struct GetRetellingQuestionResponse {
-    1: required list<RetellingQuestion> questions
+struct GetQuestionListResponse {
+    1: required list<Question> questions
     2: required i32 total
     3: required i32 statusCode
     4: required string statusMsg
@@ -56,7 +59,7 @@ struct DelOriginalQuestionResponse {
 }
 
 struct SaveRetellingQuestionRequest {
-    1: required RetellingQuestion newQuestion
+    1: required Question newQuestion
 }
 
 struct SaveRetellingQuestionResponse {
@@ -78,8 +81,8 @@ struct SaveQuestionFeedbackResponse {
 }
 
 service QuestionService {
-    // 获取转述题信息
-    GetRetellingQuestionResponse getRetellingQuestion(1: GetRetellingQuestionRequest request)
+    // 获取题目信息
+    GetQuestionListResponse getQuestionList(1: GetQuestionListRequest request)
     // 新增（修改）转述题信息
     SaveRetellingQuestionResponse saveRetellingQuestion(1: SaveRetellingQuestionRequest request)
     // 点赞、点踩、收藏题目

@@ -1,5 +1,4 @@
 import json
-from functools import reduce
 
 from flask import request, current_app, jsonify
 from flask_login import current_user
@@ -8,7 +7,7 @@ from app import errors
 from app.admin.admin_config import PaginationConfig
 from app.models.question import QuestionModel
 from app.models.origin import *
-from app.utils.dto_converter import retelling_question_convert_to_json
+from app.utils.dto_converter import question_item_convert_to_json
 from client import question_client, question_thrift
 from . import admin, util
 from app.auth.util import admin_login_required
@@ -37,28 +36,30 @@ def generate_wordbase_by_text():
     }))
 
 
-@admin.route('/question-type-two', methods=['GET'])
+@admin.route('/questions', methods=['GET'])
 @admin_login_required
-def get_all_type_two_questions():
+def get_all_questions():
     """获取所有第二种类型的题目
 
     :return: 所有第二种类型的题目题目，可直接展示
     """
     (page, size) = __get_page_and_size_from_request_args(request.args)
+    question_type = request.args.get('type')
 
-    resp = question_client.getRetellingQuestion(question_thrift.GetRetellingQuestionRequest(
+    resp = question_client.getQuestionList(question_thrift.GetQuestionListRequest(
+        questionType=int(question_type) if question_type is not None else None,
         page=page,
         pageSize=size
     ))
     if resp is None:
-        current_app.logger.error("[get_all_type_two_questions] question_client.getRetellingQuestion failed")
+        current_app.logger.error("[get_all_questions] question_client.getQuestionInfo failed")
         return jsonify(errors.Internal_error)
     if resp.statusCode != 0:
         return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
 
     data = []
     for question in resp.questions:
-        data.append(retelling_question_convert_to_json(question))
+        data.append(question_item_convert_to_json(question))
 
     return jsonify(errors.success({"count": resp.total, "questions": data}))
 
@@ -101,16 +102,16 @@ def get_question(index):
     :param index: 问题ID
     :return:  该问题详情
     """
-    resp = question_client.getRetellingQuestion(question_thrift.GetRetellingQuestionRequest(
+    resp = question_client.getQuestionList(question_thrift.GetQuestionListRequest(
         questionIndex=int(index)
     ))
     if resp is None:
-        current_app.logger.error("[get_question] question_client.getRetellingQuestion failed")
+        current_app.logger.error("[get_question] question_client.getQuestionList failed")
         return jsonify(errors.Internal_error)
     if resp.statusCode != 0:
         return jsonify(errors.error({'code': resp.statusCode, 'msg': resp.statusMsg}))
 
-    return jsonify(errors.success(retelling_question_convert_to_json(resp.questions[0])))
+    return jsonify(errors.success(question_item_convert_to_json(resp.questions[0])))
 
 
 @admin.route('/question/<index>', methods=['DELETE'])
