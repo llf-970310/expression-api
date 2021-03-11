@@ -29,9 +29,12 @@ class MyCelery(object):
         """
         try:
             if use_lock:
-                key = 'celery_lock:%s-%s-%s' % (q_type, test_id, q_num)
+                if q_type == "pretest":
+                    key = 'celery_lock:%s-%s' % (q_type, current_user.id)
+                else:
+                    key = 'celery_lock:%s-%s-%s' % (q_type, test_id, q_num)
                 val = ''
-                lock = redis_client.set(key, val, ex=60, nx=True)
+                lock = redis_client.set(key, val, ex=5, nx=True)
                 if not lock:
                     raise Exception('Failed to get redis lock')
             if q_type == 'pretest':
